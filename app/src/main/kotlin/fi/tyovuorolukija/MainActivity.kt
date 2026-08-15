@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import fi.tyovuorolukija.ui.CaptureScreen
+import fi.tyovuorolukija.ui.CleanupScreen
 import fi.tyovuorolukija.ui.HomeScreen
 import fi.tyovuorolukija.ui.SettingsScreen
 import fi.tyovuorolukija.ui.TesScreen
@@ -107,6 +108,7 @@ private fun AppRoot(viewModel: MainViewModel = viewModel()) {
         is UiState.Scanning -> "Skannaa"
         is UiState.Settings -> "Asetukset"
         is UiState.Tes -> "Työehtosopimus"
+        is UiState.Cleanup -> "Siivoa kalenteri"
         is UiState.History -> "Historia ja tilastot"
         is UiState.Review -> "Tarkista vuorot"
         is UiState.Working -> stringResource(R.string.app_name)
@@ -147,6 +149,7 @@ private fun AppRoot(viewModel: MainViewModel = viewModel()) {
                 onHistory = viewModel::openHistory,
                 onSettings = viewModel::openSettings,
                 onTes = viewModel::openTes,
+                onCleanup = viewModel::openCleanup,
                 onUndo = viewModel::undo,
                 modifier = content,
             )
@@ -169,6 +172,16 @@ private fun AppRoot(viewModel: MainViewModel = viewModel()) {
             is UiState.Settings -> SettingsScreen(
                 form = s.payForm,
                 onFormChange = viewModel::updatePayForm,
+                onBack = viewModel::reset,
+                modifier = content,
+            )
+
+            is UiState.Cleanup -> CleanupScreen(
+                state = s,
+                onRangeChange = viewModel::updateCleanupRange,
+                onSelectCalendar = viewModel::selectCleanupCalendar,
+                onSearch = viewModel::searchCleanup,
+                onDelete = viewModel::deleteCleanup,
                 onBack = viewModel::reset,
                 modifier = content,
             )

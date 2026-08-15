@@ -38,6 +38,21 @@ data class UndoSummary(
     val failed: List<String>,
 )
 
+/** Kalenterista löytynyt, tämän sovelluksen luoma tapahtuma. */
+data class FoundEvent(
+    val id: Long,
+    val title: String,
+    val startMillis: Long,
+    val endMillis: Long,
+)
+
+/**
+ * Merkkijono jonka sovellus kirjoittaa jokaisen luomansa tapahtuman kuvaukseen.
+ * Sitä käytetään tunnisteena siivoustoiminnossa. Älä muuta — vanhat tapahtumat
+ * eivät silloin enää löydy.
+ */
+const val APP_MARKER = "Lisätty Työvuorolukijalla."
+
 /** Kalenterissa oleva tila ennen muutosta. */
 private data class EventSnapshot(
     val title: String?,
@@ -378,8 +393,75 @@ class CalendarRepository(private val context: Context) {
         }.getOrNull()
     }
 
+    /**
+     * Etsii tämän sovelluksen luomat tapahtumat aikaväliltä.
+     *
+     * Tunnistus tehdään kuvauskentän merkkijonosta eikä paikallisesta kirjanpidosta,
+     * koska kirjanpito katoaa jos sovellus asennetaan uudelleen — tapahtumat jäävät
+     * silloin kalenteriin ilman että sovellus tietää niistä. Merkkijono kulkee
+     * tapahtuman mukana myös laitteesta toiseen.
+     *
+     * Muita kuin sovelluksen itse luomia tapahtumia ei koskaan löydetä eikä poisteta.
+     */
+    @SuppressLint("MissingPermission")
+    suspend fun findAppEvents(
+        calendarId: Long,
+        from: LocalDate,
+        to: LocalDate,
+    ): List<FoundEvent> = withContext(Dispatchers.IO) {
+        val zone = ShiftTimes.HELSINKI
+        val fromMillis = from.atStartOfDay(zone).toInstant().toEpochMilli()
+        val toMillis = to.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+
+        val projection = arrayOf(
+            CalendarContract.Events._ID,
+            CalendarContract.Events.TITLE,
+            CalendarContract.Events.DTSTART,
+            CalendarContract.Events.DTEND,
+        )
+        val selection = "${CalendarContract.Events.CALENDAR_ID} = ? " +
+            "AND ${CalendarContract.Events.DTSTART} >= ? " +
+            "AND ${CalendarContract.Events.DTSTART} < ? " +
+            "AND ${CalendarContract.Events.DESCRIPTION} LIKE ? " +
+            "AND ${CalendarContract.Events.DELETED} = 0"
+        val args = arrayOf(
+            calendarId.toString(), fromMillis.toString(), toMillis.toString(), "%$APP_MARKER%",
+        )
+
+        val out = mutableListOf<FoundEvent>()
+        context.contentResolver.query(
+            CalendarContract.Events.CONTENT_URI, projection, selection, args,
+            "${CalendarContract.Events.DTSTART} ASC",
+        )?.use { c ->
+            while (c.moveToNext()) {
+                out += FoundEvent(
+                    id = c.getLong(0),
+                    title = c.getString(1) ?: "",
+                    startMillis = c.getLong(2),
+                    endMillis = if (c.isNull(3)) c.getLong(2) else c.getLong(3),
+                )
+            }
+        }
+        out
+    }
+
+    /** Poistaa annetut tapahtumat ja niitä vastaavan paikallisen kirjanpidon. */
+    @SuppressLint("MissingPermission")
+    suspend fun deleteEvents(ids: List<Long>): Int = withContext(Dispatchers.IO) {
+        var deleted = 0
+        for (id in ids) {
+            val uri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, id)
+            val rows = runCatching {
+                context.contentResolver.delete(uri, null, null)
+            }.getOrDefault(0)
+            if (rows > 0) deleted++
+            dao.deleteByEventId(id)
+        }
+        deleted
+    }
+
     private fun description(shift: Shift): String = buildString {
-        append("Lisätty Työvuorolukijalla.")
+        append(APP_MARKER)
         shift.code?.let { append("\nKoodi: $it") }
         append("\nLähde: ${shift.source.trim()}")
     }

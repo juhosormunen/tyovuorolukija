@@ -133,36 +133,43 @@ fun HistoryScreen(
             item { PayTotalsBlock(totals) }
         }
 
-        item {
-            ChartBlock(
-                title = "Työtunnit jaksoittain",
-                subtitle = "Kokonaistunnit kultakin jaksolta.",
-            ) {
-                BarChart(
-                    bars = periods.mapIndexed { i, p ->
-                        Bar(labels[i], listOf(p.totalMinutes / 60f), hours(p.totalMinutes))
-                    },
-                    colors = listOf(VizColors.series1()),
-                )
+        // Pylväsgraafi vertaa jaksoja toisiinsa. Yhdellä jaksolla ei ole mitään
+        // verrattavaa, ja yksipylväinen kaavio näyttää tyhjänpäiväiseltä —
+        // silloin sama tieto on luettavampana taulukkona.
+        if (periods.size < 2) {
+            item { SinglePeriodBreakdown(periods.first()) }
+        } else {
+            item {
+                ChartBlock(
+                    title = "Työtunnit jaksoittain",
+                    subtitle = "Kokonaistunnit kultakin jaksolta.",
+                ) {
+                    BarChart(
+                        bars = periods.mapIndexed { i, p ->
+                            Bar(labels[i], listOf(p.totalMinutes / 60f), hours(p.totalMinutes))
+                        },
+                        colors = listOf(VizColors.series1()),
+                    )
+                }
             }
-        }
 
-        item {
-            ChartBlock(
-                title = "Työaikakorvausten tunnit",
-                subtitle = "Neljä lajia erikseen — sama tunti voi kuulua useaan " +
-                    "lajiin, joten niitä ei lasketa yhteen.",
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    SupplementChart("Yötyö", labels, periods.map { it.nightMinutes })
-                    SupplementChart("Iltatyö", labels, periods.map { it.eveningMinutes })
-                    SupplementChart("Sunnuntaityö", labels, periods.map { it.sundayMinutes })
-                    SupplementChart("Lauantaityö", labels, periods.map { it.saturdayMinutes })
+            item {
+                ChartBlock(
+                    title = "Työaikakorvausten tunnit",
+                    subtitle = "Neljä lajia erikseen — sama tunti voi kuulua useaan " +
+                        "lajiin, joten niitä ei lasketa yhteen.",
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        SupplementChart("Yötyö", labels, periods.map { it.nightMinutes })
+                        SupplementChart("Iltatyö", labels, periods.map { it.eveningMinutes })
+                        SupplementChart("Sunnuntaityö", labels, periods.map { it.sundayMinutes })
+                        SupplementChart("Lauantaityö", labels, periods.map { it.saturdayMinutes })
+                    }
                 }
             }
         }
 
-        val withPay = periods.filter { it.grossCents != null }
+        val withPay = if (periods.size < 2) emptyList() else periods.filter { it.grossCents != null }
         if (withPay.isNotEmpty()) {
             item {
                 ChartBlock(
@@ -198,19 +205,21 @@ fun HistoryScreen(
             }
         }
 
-        item {
-            ChartBlock(
-                title = "Yövuorot jaksoittain",
-                subtitle = "Kuormituksen kannalta olennaisin yksittäinen luku.",
-            ) {
-                BarChart(
-                    bars = periods.mapIndexed { i, p ->
-                        Bar(labels[i], listOf(p.nightShiftCount.toFloat()),
-                            p.nightShiftCount.toString())
-                    },
-                    colors = listOf(VizColors.series1()),
-                    height = 100.dp,
-                )
+        if (periods.size >= 2) {
+            item {
+                ChartBlock(
+                    title = "Yövuorot jaksoittain",
+                    subtitle = "Kuormituksen kannalta olennaisin yksittäinen luku.",
+                ) {
+                    BarChart(
+                        bars = periods.mapIndexed { i, p ->
+                            Bar(labels[i], listOf(p.nightShiftCount.toFloat()),
+                                p.nightShiftCount.toString())
+                        },
+                        colors = listOf(VizColors.series1()),
+                        height = 100.dp,
+                    )
+                }
             }
         }
 
@@ -268,6 +277,39 @@ private fun PayTotalsBlock(totals: fi.tyovuorolukija.data.PayTotals) {
                 totals.taxCents?.let { ValueRow("− ennakonpidätys", it.centsToEuros() + " €") }
                 totals.contributionsCents?.let {
                     ValueRow("− eläke- ja tv-maksut", it.centsToEuros() + " €")
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Yhden jakson erittely taulukkona. Graafit ilmestyvät vasta kun on jotain
+ * mihin verrata.
+ */
+@Composable
+private fun SinglePeriodBreakdown(period: ScannedPeriod) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Jakson erittely", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "Vertailugraafit ilmestyvät kun jaksoja on vähintään kaksi.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Card {
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                ValueRow("Työtunnit", hours(period.totalMinutes))
+                HorizontalDivider(Modifier.padding(vertical = 4.dp))
+                ValueRow("Yötyö (22–07)", hours(period.nightMinutes))
+                ValueRow("Iltatyö (18–22)", hours(period.eveningMinutes))
+                ValueRow("Sunnuntaityö", hours(period.sundayMinutes))
+                ValueRow("Lauantaityö", hours(period.saturdayMinutes))
+                HorizontalDivider(Modifier.padding(vertical = 4.dp))
+                ValueRow("Vuoroja", period.shiftCount.toString())
+                ValueRow("Vapaapäiviä", period.freeDayCount.toString())
+                ValueRow("Pisin työputki", "${period.longestWorkStreakDays} pv")
+                period.shortestRestMinutes?.let {
+                    ValueRow("Lyhin lepo vuorojen välissä", hours(it))
                 }
             }
         }

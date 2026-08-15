@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.PhotoCamera
@@ -46,6 +47,7 @@ fun HomeScreen(
     onHistory: () -> Unit,
     onSettings: () -> Unit,
     onTes: () -> Unit,
+    onCleanup: () -> Unit,
     onUndo: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -99,6 +101,14 @@ fun HomeScreen(
             title = "Työehtosopimus",
             subtitle = "Mihin laskenta perustuu — pykälät, kellonajat ja prosentit",
             onClick = onTes,
+        )
+
+        MenuCard(
+            icon = Icons.Default.DeleteSweep,
+            accent = ShiftColors.Free,
+            title = "Siivoa kalenteri",
+            subtitle = "Poista sovelluksen luomat tapahtumat valitulta ajanjaksolta",
+            onClick = onCleanup,
         )
 
         // Virheen huomaa usein vasta kalenterista, joten kumous on tarjolla

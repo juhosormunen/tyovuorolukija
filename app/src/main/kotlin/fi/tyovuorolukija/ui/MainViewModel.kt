@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import fi.tyovuorolukija.calendar.CalendarInfo
 import fi.tyovuorolukija.calendar.CalendarRepository
+import fi.tyovuorolukija.calendar.FoundEvent
 import fi.tyovuorolukija.calendar.SyncSummary
 import fi.tyovuorolukija.calendar.UndoSummary
 import fi.tyovuorolukija.data.HistoryRepository
@@ -97,6 +98,28 @@ sealed interface UiState {
 
     data class Settings(val payForm: PayForm) : UiState
     data class Tes(val payForm: PayForm) : UiState
+
+    data class Cleanup(
+        val from: String = "",
+        val to: String = "",
+        val calendars: List<CalendarInfo> = emptyList(),
+        val selectedCalendarId: Long? = null,
+        val found: List<FoundEvent> = emptyList(),
+        val searched: Boolean = false,
+        val busy: Boolean = false,
+        val message: String? = null,
+    ) : UiState {
+        val fromDate: LocalDate? get() = parseDate(from)
+        val toDate: LocalDate? get() = parseDate(to)
+        val fromError: Boolean get() = fromDate == null
+        val toError: Boolean get() = toDate == null || (fromDate?.isAfter(toDate) == true)
+
+        companion object {
+            val DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy")
+            fun parseDate(text: String): LocalDate? =
+                runCatching { LocalDate.parse(text.trim(), DATE_FORMAT) }.getOrNull()
+        }
+    }
 
     data class Working(val step: String) : UiState
 
@@ -205,6 +228,85 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun openTes() {
         _state.value = UiState.Tes(paySettings.load())
+    }
+
+    fun openCleanup() {
+        // Oletusväliksi kuluva kuukausi ja seuraava — kattaa tyypillisen jakson.
+        val today = LocalDate.now()
+        _state.value = UiState.Cleanup(
+            from = today.withDayOfMonth(1).format(UiState.Cleanup.DATE_FORMAT),
+            to = today.plusMonths(2).withDayOfMonth(1).minusDays(1)
+                .format(UiState.Cleanup.DATE_FORMAT),
+        )
+        viewModelScope.launch {
+            val list = runCatching { calendars.writableCalendars() }.getOrDefault(emptyList())
+            updateCleanup {
+                it.copy(calendars = list, selectedCalendarId = list.firstOrNull()?.id)
+            }
+        }
+    }
+
+    fun updateCleanupRange(from: String, to: String) = updateCleanup {
+        it.copy(from = from, to = to, searched = false, found = emptyList(), message = null)
+    }
+
+    fun selectCleanupCalendar(id: Long) = updateCleanup {
+        it.copy(selectedCalendarId = id, searched = false, found = emptyList())
+    }
+
+    fun searchCleanup() {
+        val s = _state.value as? UiState.Cleanup ?: return
+        val from = s.fromDate ?: return
+        val to = s.toDate ?: return
+        val calendarId = s.selectedCalendarId ?: return
+
+        viewModelScope.launch {
+            updateCleanup { it.copy(busy = true, message = null) }
+            val result = runCatching { calendars.findAppEvents(calendarId, from, to) }
+            result.fold(
+                onSuccess = { events ->
+                    updateCleanup {
+                        it.copy(busy = false, searched = true, found = events)
+                    }
+                },
+                onFailure = { t ->
+                    updateCleanup {
+                        it.copy(busy = false, message = "Haku epäonnistui: ${t.message}")
+                    }
+                },
+            )
+        }
+    }
+
+    fun deleteCleanup() {
+        val s = _state.value as? UiState.Cleanup ?: return
+        val ids = s.found.map { it.id }
+        if (ids.isEmpty()) return
+
+        viewModelScope.launch {
+            updateCleanup { it.copy(busy = true, message = null) }
+            val result = runCatching { calendars.deleteEvents(ids) }
+            result.fold(
+                onSuccess = { count ->
+                    updateCleanup {
+                        it.copy(
+                            busy = false,
+                            found = emptyList(),
+                            message = "Poistettu $count tapahtumaa.",
+                        )
+                    }
+                },
+                onFailure = { t ->
+                    updateCleanup {
+                        it.copy(busy = false, message = "Poisto epäonnistui: ${t.message}")
+                    }
+                },
+            )
+        }
+    }
+
+    private fun updateCleanup(transform: (UiState.Cleanup) -> UiState.Cleanup) {
+        _state.update { if (it is UiState.Cleanup) transform(it) else it }
     }
 
     fun openHistory() {
