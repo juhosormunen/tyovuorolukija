@@ -138,6 +138,8 @@ sealed interface UiState {
         val rawLines: List<String>,
         val employerSummary: EmployerSummary = EmployerSummary(),
         val payForm: PayForm = PayForm(),
+        /** Tulosteesta luettu työaikaprosentti, vertailua varten. */
+        val printoutPartTime: Double? = null,
         val calendars: List<CalendarInfo> = emptyList(),
         val selectedCalendarId: Long? = null,
         val saving: Boolean = false,
@@ -399,6 +401,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     rawLines = page.rawLines,
                     employerSummary = result.employerSummary,
                     payForm = form,
+                    printoutPartTime = result.partTimePercent,
                 )
                 loadCalendars()
             } catch (t: Throwable) {

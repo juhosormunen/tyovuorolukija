@@ -33,6 +33,9 @@ data class PayLine(
 
 data class PayBreakdown(
     val hourlyRate: BigDecimal,
+    /** Jakaja jolla tuntipalkka laskettiin, esim. 130,4 kun 163 × 80 %. */
+    val effectiveDivisor: BigDecimal,
+    val partTimePercent: Double,
     val lines: List<PayLine>,
     val supplementsTotal: BigDecimal,
     val monthlySalary: BigDecimal,
@@ -93,14 +96,37 @@ object PayCalculator {
     }
 
     /**
+     * Työaikaprosentin sallittu väli. Alle 1 % tai yli 100 % ei ole mielekäs
+     * työaikaprosentti, ja koska luku on jakajassa, pieni kirjoitusvirhe kertautuu:
+     * "8" oikean "80":n sijaan viisinkertaistaisi tuntipalkan.
+     */
+    const val MIN_PART_TIME = 1.0
+    const val MAX_PART_TIME = 100.0
+
+    fun normalizePartTime(percent: Double): Double =
+        percent.coerceIn(MIN_PART_TIME, MAX_PART_TIME)
+
+    /** True jos annettu työaikaprosentti jouduttiin rajaamaan — arvo on epäilyttävä. */
+    fun isPartTimeOutOfRange(percent: Double): Boolean =
+        percent < MIN_PART_TIME || percent > MAX_PART_TIME
+
+    /**
      * Tuntipalkka. 23 § 1 mom: varsinainen palkka jaettuna jakajalla (jaksotyössä 163).
      * 23 § 3 mom: osa-aikaisella jakaja kerrotaan työaikaosuudella, jolloin
-     * osa-aikapalkasta saadaan sama tuntipalkka kuin kokoaikaisella.
+     * osa-aikapalkasta saadaan **sama** tuntipalkka kuin kokoaikaisella.
+     *
+     * Jakaja 163 on siis kokoaikaisen luku eikä muutu; työaikaprosentti skaalaa sen.
+     * Tästä seuraa myös se, että väärä työaikaprosentti vääristää tuntipalkkaa
+     * suoraan samassa suhteessa — 80 %:n palkka jaettuna kokoaikaisen jakajalla
+     * antaa 20 % liian pienen tuntipalkan ja siten liian pienet lisät.
      */
-    fun hourlyRate(input: PayInput): BigDecimal {
-        val share = (input.partTimePercent / 100.0).coerceAtLeast(0.01)
-        val divisor = BigDecimal(input.rates.monthlyDivisor * share)
-        return input.monthlySalary.divide(divisor, 4, RoundingMode.HALF_UP)
+    fun hourlyRate(input: PayInput): BigDecimal =
+        input.monthlySalary.divide(effectiveDivisor(input), 4, RoundingMode.HALF_UP)
+
+    /** Todellisuudessa käytetty jakaja, esim. 163 × 80 % = 130,4. */
+    fun effectiveDivisor(input: PayInput): BigDecimal {
+        val share = normalizePartTime(input.partTimePercent) / 100.0
+        return BigDecimal(input.rates.monthlyDivisor * share)
     }
 
     /**
@@ -152,6 +178,8 @@ object PayCalculator {
 
         return PayBreakdown(
             hourlyRate = hourly.setScale(2, RoundingMode.HALF_UP),
+            effectiveDivisor = effectiveDivisor(input).setScale(2, RoundingMode.HALF_UP),
+            partTimePercent = normalizePartTime(input.partTimePercent),
             lines = lines,
             supplementsTotal = supplements.setScale(2, RoundingMode.HALF_UP),
             monthlySalary = input.monthlySalary.setScale(2, RoundingMode.HALF_UP),

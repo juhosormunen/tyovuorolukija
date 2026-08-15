@@ -20,6 +20,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,6 +47,7 @@ fun PaySection(
     comparison: ComparisonResult?,
     pay: PayBreakdown?,
     form: PayForm,
+    printoutPartTime: Double?,
     onFormChange: (PayForm) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -87,6 +89,53 @@ fun PaySection(
                 "ei kokoaikaisen palkkaa (23 § 3 mom).",
             style = MaterialTheme.typography.bodySmall,
         )
+
+        // Työaikaprosentti on tuntipalkan jakajassa, joten virhe siinä siirtyy
+        // suoraan lisien euroihin. Siksi ristiriita tulosteen kanssa näytetään
+        // sen sijaan että toinen arvo valittaisiin hiljaa.
+        if (printoutPartTime != null &&
+            kotlin.math.abs(form.partTime - printoutPartTime) > 0.01
+        ) {
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                ),
+            ) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Icon(Icons.Default.Warning, contentDescription = null)
+                        Text(
+                            "Työaikaprosentti ei täsmää",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                    Text(
+                        "Tulosteessa lukee ${printoutPartTime.pct()}, asetuksissa on " +
+                            "${form.partTime.pct()}. Luku on tuntipalkan jakajassa, joten " +
+                            "väärä arvo vääristää kaikkia lisiä samassa suhteessa.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    TextButton(
+                        onClick = {
+                            onFormChange(form.copy(partTimePercent = printoutPartTime.pctPlain()))
+                        },
+                    ) { Text("Käytä tulosteen arvoa ${printoutPartTime.pct()}") }
+                }
+            }
+        }
+
+        if (form.partTimeSuspicious) {
+            Text(
+                "Työaikaprosentin pitää olla 1–100. Laskennassa käytetään lähintä " +
+                    "kelvollista arvoa, mutta tarkista luku.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
 
         if (pay != null) PayCard(pay)
 
@@ -236,6 +285,14 @@ private fun PayCard(pay: PayBreakdown) {
     Card {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             MoneyRow("Tuntipalkka", pay.hourlyRate.toPlainString() + " €/h")
+            // Laskukaava näkyviin: jakaja on muuten mystinen luku, ja tästä
+            // näkee heti jos työaikaprosentti on väärin.
+            Text(
+                "${pay.monthlySalary.toPlainString()} € ÷ (${pay.effectiveDivisor.toPlainString()}" +
+                    " = jakaja × ${pay.partTimePercent.pct()})",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             MoneyRow("Kuukausipalkka", pay.monthlySalary.toPlainString() + " €")
             HorizontalDivider(Modifier.padding(vertical = 4.dp))
             pay.lines.forEach { line ->
@@ -329,3 +386,7 @@ private fun NumberField(
 
 private fun Double.pct(): String =
     if (this == toLong().toDouble()) "${toLong()} %" else "$this %"
+
+/** Sama luku ilman prosenttimerkkiä — menee suoraan tekstikenttään. */
+private fun Double.pctPlain(): String =
+    if (this == toLong().toDouble()) toLong().toString() else toString()

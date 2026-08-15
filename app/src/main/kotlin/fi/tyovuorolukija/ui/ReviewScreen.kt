@@ -134,6 +134,7 @@ fun ReviewScreen(
                     comparison = state.comparison,
                     pay = state.payBreakdown,
                     form = state.payForm,
+                    printoutPartTime = state.printoutPartTime,
                     onFormChange = onPayFormChange,
                 )
             }

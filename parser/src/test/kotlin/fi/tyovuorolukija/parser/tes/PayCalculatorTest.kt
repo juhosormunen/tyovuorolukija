@@ -72,6 +72,65 @@ class PayCalculatorTest {
     }
 
     @Test
+    fun `tuntipalkka on sama kokoaikaisella ja osa-aikaisella`() {
+        // 23 § 3 mom: jakaja skaalataan työaikaosuudella, joten osa-aikapalkasta
+        // tulee sama tuntipalkka. Kokoaikainen 3260 € ja 80-prosenttinen 2608 €
+        // ovat sama tehtäväkohtainen palkka.
+        val kokoaikainen = PayInput(BigDecimal("3260.00"), partTimePercent = 100.0)
+        val osaAikainen = PayInput(BigDecimal("2608.00"), partTimePercent = 80.0)
+
+        assertEquals(BigDecimal("20.0000"), PayCalculator.hourlyRate(kokoaikainen))
+        assertEquals(BigDecimal("20.0000"), PayCalculator.hourlyRate(osaAikainen))
+
+        // Vertaillaan arvoa, ei esitysmuotoa: BigDecimalin equals huomioi desimaalit.
+        assertEquals(163.0, PayCalculator.effectiveDivisor(kokoaikainen).toDouble(), 0.001)
+        assertEquals(130.4, PayCalculator.effectiveDivisor(osaAikainen).toDouble(), 0.001)
+    }
+
+    @Test
+    fun `puuttuva tyoaikaprosentti aliarvioi tuntipalkan`() {
+        // Tämä on se virhe jonka takia työaikaprosentti pitää saada oikein:
+        // osa-aikapalkka jaettuna kokoaikaisen jakajalla antaa liian pienen
+        // tuntipalkan, ja sitä kautta liian pienet lisät.
+        val vaarin = PayInput(BigDecimal("2608.00"), partTimePercent = 100.0)
+        val oikein = PayInput(BigDecimal("2608.00"), partTimePercent = 80.0)
+
+        assertEquals(BigDecimal("16.0000"), PayCalculator.hourlyRate(vaarin))
+        assertEquals(BigDecimal("20.0000"), PayCalculator.hourlyRate(oikein))
+    }
+
+    @Test
+    fun `epakelpo tyoaikaprosentti rajataan`() {
+        // "8" kirjoitusvirheenä "80":sta viisinkertaistaisi tuntipalkan, jos
+        // arvoa ei rajattaisi. Rajaus ei korjaa lukua oikeaksi — se estää
+        // absurdin lopputuloksen, ja käyttöliittymä varoittaa erikseen.
+        assertEquals(1.0, PayCalculator.normalizePartTime(0.0))
+        assertEquals(1.0, PayCalculator.normalizePartTime(-50.0))
+        assertEquals(100.0, PayCalculator.normalizePartTime(150.0))
+        assertEquals(80.0, PayCalculator.normalizePartTime(80.0))
+
+        assertTrue(PayCalculator.isPartTimeOutOfRange(0.0))
+        assertTrue(PayCalculator.isPartTimeOutOfRange(120.0))
+        assertTrue(!PayCalculator.isPartTimeOutOfRange(80.0))
+    }
+
+    @Test
+    fun `tyoaikaprosentti ei vaikuta lisatunteihin vaan vain tuntipalkkaan`() {
+        // Lisätunnit tulevat tehdyistä tunneista, eivät sopimuksen työajasta.
+        // Vain euromäärä muuttuu prosentin mukana.
+        fun lisat(percent: Double) = PayCalculator.calculate(
+            parsed.shifts, parsed.employerSummary,
+            PayInput(BigDecimal("2608.00"), partTimePercent = percent),
+        )
+
+        val a = lisat(80.0)
+        val b = lisat(100.0)
+
+        assertEquals(a.lines.map { it.minutes }, b.lines.map { it.minutes }, "tunnit samat")
+        assertTrue(a.supplementsTotal > b.supplementsTotal, "euromäärä seuraa tuntipalkkaa")
+    }
+
+    @Test
     fun `lisat lasketaan tunneista ja prosenteista`() {
         val input = PayInput(
             monthlySalary = BigDecimal("2608.00"),

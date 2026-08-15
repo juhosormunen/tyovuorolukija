@@ -28,7 +28,22 @@ data class PayForm(
     val salary: java.math.BigDecimal?
         get() = monthlySalary.num()?.takeIf { it > 0 }?.let { java.math.BigDecimal.valueOf(it) }
 
+    /**
+     * Työaikaprosentti. Tyhjä kenttä tarkoittaa kokoaikaista (100).
+     *
+     * Huom: tämä luku on tuntipalkan jakajassa, joten virhe siinä siirtyy
+     * suoraan lisien euromääriin. Siksi [partTimeSuspicious] varoittaa erikseen.
+     */
     val partTime: Double get() = partTimePercent.num()?.takeIf { it > 0 } ?: 100.0
+
+    /** True jos kenttään on kirjoitettu jotain mikä ei kelpaa työaikaprosentiksi. */
+    val partTimeSuspicious: Boolean
+        get() {
+            if (partTimePercent.isBlank()) return false
+            val value = partTimePercent.num() ?: return true
+            return value < 1.0 || value > 100.0
+        }
+
     val tax: Double? get() = taxPercent.num()?.takeIf { it >= 0 }
 
     val rates: TesRates
