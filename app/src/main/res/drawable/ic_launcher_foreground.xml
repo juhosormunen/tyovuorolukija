@@ -1,0 +1,16 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Kalenteriruudukko + kellonviisari, valkoisella. -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M34,30h40a6,6 0 0 1 6,6v40a6,6 0 0 1 -6,6h-40a6,6 0 0 1 -6,-6v-40a6,6 0 0 1 6,-6zM34,36v8h40v-8z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M38,24h5v10h-5zM65,24h5v10h-5z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M36,50h8v7h-8zM50,50h8v7h-8zM64,50h8v7h-8zM36,62h8v7h-8zM50,62h8v7h-8z" />
+</vector>
