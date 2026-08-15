@@ -115,28 +115,29 @@ fun CleanupScreen(
 
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
+                DateField(
                     value = state.from,
                     onValueChange = { onRangeChange(it, state.to) },
-                    label = { Text("Alkaen") },
+                    label = "Alkaen",
                     isError = state.fromError,
-                    singleLine = true,
                     modifier = Modifier.weight(1f),
                 )
-                OutlinedTextField(
+                DateField(
                     value = state.to,
                     onValueChange = { onRangeChange(state.from, it) },
-                    label = { Text("Päättyen") },
+                    label = "Päättyen",
                     isError = state.toError,
-                    singleLine = true,
                     modifier = Modifier.weight(1f),
                 )
             }
-            Text(
-                "Muoto pp.kk.vvvv",
-                style = MaterialTheme.typography.labelSmall,
-                modifier = Modifier.padding(top = 4.dp),
-            )
+            if (state.toError && !state.fromError) {
+                Text(
+                    "Loppupäivä ei voi olla ennen alkupäivää.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
         }
 
         item {
