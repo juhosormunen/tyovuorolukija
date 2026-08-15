@@ -7,16 +7,17 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-private val Teal = Color(0xFF1B5E5A)
-private val TealLight = Color(0xFF7FCFC8)
+// Brändin petroli on sama väri kuin sovellusikonin tausta.
+private val Brand = Color(0xFF0F6E56)
+private val BrandLight = Color(0xFF7FCFC8)
 
 private val LightColors = lightColorScheme(
-    primary = Teal,
+    primary = Brand,
     secondary = Color(0xFF4A635F),
 )
 
 private val DarkColors = darkColorScheme(
-    primary = TealLight,
+    primary = BrandLight,
     secondary = Color(0xFFB1CCC7),
 )
 

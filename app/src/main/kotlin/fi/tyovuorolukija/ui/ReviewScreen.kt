@@ -4,11 +4,14 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -41,6 +44,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import fi.tyovuorolukija.parser.ShiftCodes
+import fi.tyovuorolukija.ui.theme.ShiftColors
 import java.time.format.DateTimeFormatter
 
 private val DAY_FORMAT = DateTimeFormatter.ofPattern("EEE dd.MM.")
@@ -240,6 +244,15 @@ private fun ShiftRowCard(row: ShiftRow, onChange: ((ShiftRow) -> ShiftRow) -> Un
             },
         ),
     ) {
+        Row {
+            // Reunapalkki vuorotyypin värillä: tekee vuororytmin näkyväksi listaa
+            // selatessa. Väri on tunniste, ei tieto — otsikko kertoo saman.
+            Box(
+                Modifier
+                    .width(6.dp)
+                    .fillMaxHeight()
+                    .background(ShiftColors.forCode(row.code.ifBlank { null }))
+            )
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(
@@ -287,6 +300,7 @@ private fun ShiftRowCard(row: ShiftRow, onChange: ((ShiftRow) -> ShiftRow) -> Un
                         modifier = Modifier.weight(1f),
                     )
                 }
+            }
             }
         }
     }

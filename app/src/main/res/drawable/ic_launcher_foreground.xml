@@ -1,16 +1,66 @@
+<!--
+  Vuorokello: 24 tunnin kellotaulu, jonka kehä on jaettu vuorotyyppien väreihin.
+
+  Mitoitus: adaptive iconin turva-alue on 108 dp:n ruudun keskimmäiset 66 dp.
+  Kehän säde 24 + viivanleveys 9 -> ulkohalkaisija 57 dp, joten merkki kestää
+  rajauksen myös pyöreässä ja squircle-maskissa.
+
+  Kehä piirretään yhtenä ympyräpolkuna neljä kertaa, eri trimPath-välein.
+  Väliin jätetään pieni rako, jotta segmentit erottuvat myös silloin kun värit
+  eivät erotu (värisokeus, harmaasävytuloste).
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Kalenteriruudukko + kellonviisari, valkoisella. -->
+
+    <!-- Aamu -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M34,30h40a6,6 0 0 1 6,6v40a6,6 0 0 1 -6,6h-40a6,6 0 0 1 -6,-6v-40a6,6 0 0 1 6,-6zM34,36v8h40v-8z" />
+        android:pathData="M54,30 A24,24 0 1,1 54,78 A24,24 0 1,1 54,30"
+        android:strokeColor="#FAC775"
+        android:strokeWidth="9"
+        android:strokeLineCap="butt"
+        android:trimPathStart="0.005"
+        android:trimPathEnd="0.245" />
+    <!-- Ilta -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M38,24h5v10h-5zM65,24h5v10h-5z" />
+        android:pathData="M54,30 A24,24 0 1,1 54,78 A24,24 0 1,1 54,30"
+        android:strokeColor="#F0997B"
+        android:strokeWidth="9"
+        android:strokeLineCap="butt"
+        android:trimPathStart="0.255"
+        android:trimPathEnd="0.495" />
+    <!-- Yö -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M36,50h8v7h-8zM50,50h8v7h-8zM64,50h8v7h-8zM36,62h8v7h-8zM50,62h8v7h-8z" />
+        android:pathData="M54,30 A24,24 0 1,1 54,78 A24,24 0 1,1 54,30"
+        android:strokeColor="#85B7EB"
+        android:strokeWidth="9"
+        android:strokeLineCap="butt"
+        android:trimPathStart="0.505"
+        android:trimPathEnd="0.745" />
+    <!-- Vapaa -->
+    <path
+        android:pathData="M54,30 A24,24 0 1,1 54,78 A24,24 0 1,1 54,30"
+        android:strokeColor="#B4B2A9"
+        android:strokeWidth="9"
+        android:strokeLineCap="butt"
+        android:trimPathStart="0.755"
+        android:trimPathEnd="0.995" />
+
+    <!-- Viisarit: minuutti ylös, tunti oikealle alas. Valkoinen erottuu
+         jokaisesta kehäväristä ja tummasta taustasta. -->
+    <path
+        android:pathData="M54,54 L54,38"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="4"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M54,54 L65,60"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="4"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M54,50 A4,4 0 1,1 54,58 A4,4 0 1,1 54,50"
+        android:fillColor="#FFFFFF" />
 </vector>
