@@ -32,6 +32,8 @@ import fi.tyovuorolukija.parser.tes.toHoursMinutes
 import fi.tyovuorolukija.ui.charts.Bar
 import fi.tyovuorolukija.ui.charts.BarChart
 import fi.tyovuorolukija.ui.charts.ChartLegend
+import fi.tyovuorolukija.ui.charts.PeriodCalendar
+import fi.tyovuorolukija.ui.charts.ShiftLegend
 import fi.tyovuorolukija.ui.charts.VizColors
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -49,6 +51,8 @@ private val SHORT_DATE = DateTimeFormatter.ofPattern("d.M.")
 fun HistoryScreen(
     periods: List<ScannedPeriod>,
     years: List<YearSummary>,
+    days: List<fi.tyovuorolukija.data.ScannedDay>,
+    totals: fi.tyovuorolukija.data.PayTotals,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -80,7 +84,6 @@ fun HistoryScreen(
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         item {
-            Text("Historia", style = MaterialTheme.typography.headlineSmall)
             Text(
                 "${periods.size} jaksoa",
                 style = MaterialTheme.typography.bodyMedium,
@@ -89,6 +92,46 @@ fun HistoryScreen(
         }
 
         item { StatRow(periods) }
+
+        item {
+            ChartBlock(
+                title = "Vuororytmi",
+                subtitle = "Jokainen jakso päivä päivältä. Väri kertoo vuorotyypin, " +
+                    "kirjain saman tiedon ilman värejä.",
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    ShiftLegend()
+                    periods.forEach { period ->
+                        val periodDays = days.filter { it.periodKey == period.key }
+                        if (periodDays.isEmpty()) return@forEach
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                "${LocalDate.parse(period.rangeStart).format(SHORT_DATE)}–" +
+                                    "${LocalDate.parse(period.rangeEnd).format(SHORT_DATE)}" +
+                                    "  ·  ${hours(period.totalMinutes)} h",
+                                style = MaterialTheme.typography.labelLarge,
+                            )
+                            PeriodCalendar(
+                                days = periodDays,
+                                rangeStart = LocalDate.parse(period.rangeStart),
+                                rangeEnd = LocalDate.parse(period.rangeEnd),
+                            )
+                        }
+                    }
+                    if (days.isEmpty()) {
+                        Text(
+                            "Päiväkohtainen näkymä täyttyy seuraavista tallennuksista — " +
+                                "aiemmilta jaksoilta on tallessa vain yhteenvetoluvut.",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+            }
+        }
+
+        if (totals.grossCents != null) {
+            item { PayTotalsBlock(totals) }
+        }
 
         item {
             ChartBlock(
@@ -184,6 +227,50 @@ fun HistoryScreen(
         }
 
         item { TextButton(onClick = onBack) { Text("Takaisin") } }
+    }
+}
+
+/**
+ * Kertymä koko historiasta. Hero-luku on netto, koska se on se mikä tilille tulee;
+ * muut ovat sen erittelyä.
+ */
+@Composable
+private fun PayTotalsBlock(totals: fi.tyovuorolukija.data.PayTotals) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Palkkakertymä", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "Yhteensä ${totals.periods} jaksolta. Arvio, ei palkkalaskelma.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Card {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                totals.netCents?.let {
+                    Text(
+                        "${it.centsToEuros()} €",
+                        style = MaterialTheme.typography.displaySmall,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        "Nettoa yhteensä",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                }
+                totals.grossCents?.let { ValueRow("Brutto", it.centsToEuros() + " €") }
+                totals.supplementsCents?.let {
+                    ValueRow("josta työaikakorvauksia", it.centsToEuros() + " €")
+                }
+                totals.supplementShare?.let {
+                    ValueRow("lisien osuus bruttosta", "%.1f %%".format(it))
+                }
+                totals.taxCents?.let { ValueRow("− ennakonpidätys", it.centsToEuros() + " €") }
+                totals.contributionsCents?.let {
+                    ValueRow("− eläke- ja tv-maksut", it.centsToEuros() + " €")
+                }
+            }
+        }
     }
 }
 

@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -13,11 +14,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -38,6 +41,9 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import fi.tyovuorolukija.ui.CaptureScreen
+import fi.tyovuorolukija.ui.HomeScreen
+import fi.tyovuorolukija.ui.SettingsScreen
+import fi.tyovuorolukija.ui.TesScreen
 import fi.tyovuorolukija.ui.HistoryScreen
 import fi.tyovuorolukija.ui.MainViewModel
 import fi.tyovuorolukija.ui.ReviewScreen
@@ -95,15 +101,58 @@ private fun AppRoot(viewModel: MainViewModel = viewModel()) {
         }
     }
 
+    // Otsikko tulee palkista, ei näkymän sisältä — muuten sama sana toistuisi kahdesti.
+    val title = when (state) {
+        is UiState.Home -> stringResource(R.string.app_name)
+        is UiState.Scanning -> "Skannaa"
+        is UiState.Settings -> "Asetukset"
+        is UiState.Tes -> "Työehtosopimus"
+        is UiState.History -> "Historia ja tilastot"
+        is UiState.Review -> "Tarkista vuorot"
+        is UiState.Working -> stringResource(R.string.app_name)
+        is UiState.Done -> "Valmis"
+        is UiState.Failed -> stringResource(R.string.app_name)
+    }
+
+    // Aloitusnäkymää lukuun ottamatta jokaisesta näkymästä pääsee takaisin sekä
+    // palkin nuolesta että laitteen takaisin-eleellä. Aiemmin paluu oli vain
+    // yksittäisten näkymien omien painikkeiden varassa, ja osasta se puuttui.
+    val atHome = state is UiState.Home
+    BackHandler(enabled = !atHome) { viewModel.reset() }
+
     Scaffold(
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.app_name)) }) },
+        topBar = {
+            TopAppBar(
+                title = { Text(title) },
+                navigationIcon = {
+                    if (!atHome) {
+                        IconButton(onClick = viewModel::reset) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Takaisin aloitusnäkymään",
+                            )
+                        }
+                    }
+                },
+            )
+        },
     ) { padding ->
         val content = Modifier.fillMaxSize().padding(padding)
 
         when (val s = state) {
-            is UiState.Idle -> CaptureScreen(
-                hasCameraPermission = hasCamera,
+            is UiState.Home -> HomeScreen(
                 undoable = s.undoable,
+                hasHistory = s.hasHistory,
+                onScan = viewModel::openScan,
+                onHistory = viewModel::openHistory,
+                onSettings = viewModel::openSettings,
+                onTes = viewModel::openTes,
+                onUndo = viewModel::undo,
+                modifier = content,
+            )
+
+            is UiState.Scanning -> CaptureScreen(
+                hasCameraPermission = hasCamera,
                 onRequestCameraPermission = {
                     cameraLauncher.launch(Manifest.permission.CAMERA)
                 },
@@ -113,14 +162,28 @@ private fun AppRoot(viewModel: MainViewModel = viewModel()) {
                     )
                 },
                 onImage = viewModel::scan,
-                onUndo = viewModel::undo,
-                onOpenHistory = if (s.hasHistory) viewModel::openHistory else null,
+                onBack = viewModel::reset,
+                modifier = content,
+            )
+
+            is UiState.Settings -> SettingsScreen(
+                form = s.payForm,
+                onFormChange = viewModel::updatePayForm,
+                onBack = viewModel::reset,
+                modifier = content,
+            )
+
+            is UiState.Tes -> TesScreen(
+                form = s.payForm,
+                onBack = viewModel::reset,
                 modifier = content,
             )
 
             is UiState.History -> HistoryScreen(
                 periods = s.periods,
                 years = s.years,
+                days = s.days,
+                totals = s.totals,
                 onBack = viewModel::reset,
                 modifier = content,
             )
@@ -178,13 +241,15 @@ private fun AppRoot(viewModel: MainViewModel = viewModel()) {
                         )
                     }
                 }
-                Button(onClick = viewModel::reset) { Text("Skannaa uusi lista") }
+                Button(onClick = viewModel::reset) { Text("Takaisin alkuun") }
+                OutlinedButton(onClick = viewModel::openScan) { Text("Skannaa uusi lista") }
             }
 
             is UiState.Failed -> Centered(content) {
                 Text("Ei onnistunut", style = MaterialTheme.typography.headlineSmall)
                 Text(s.message, style = MaterialTheme.typography.bodyLarge)
-                Button(onClick = viewModel::reset) { Text("Yritä uudelleen") }
+                Button(onClick = viewModel::openScan) { Text("Yritä uudelleen") }
+                OutlinedButton(onClick = viewModel::reset) { Text("Takaisin alkuun") }
             }
         }
     }

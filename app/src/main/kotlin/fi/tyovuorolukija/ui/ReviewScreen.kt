@@ -76,10 +76,6 @@ fun ReviewScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
-                Text(
-                    "Tarkista vuorot",
-                    style = MaterialTheme.typography.headlineSmall,
-                )
                 val range = state.dateRange
                 Text(
                     buildString {

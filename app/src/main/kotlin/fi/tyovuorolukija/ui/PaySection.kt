@@ -301,6 +301,15 @@ private fun androidx.compose.foundation.layout.RowScope.Cell(
     )
 }
 
+/** Jaettu numerokenttä — käytössä sekä tässä että asetusnäkymässä. */
+@Composable
+fun PayNumberField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+) = NumberField(value, onValueChange, label, modifier)
+
 @Composable
 private fun NumberField(
     value: String,

@@ -11,6 +11,8 @@ import fi.tyovuorolukija.calendar.UndoSummary
 import fi.tyovuorolukija.data.HistoryRepository
 import fi.tyovuorolukija.data.PayForm
 import fi.tyovuorolukija.data.PaySettingsStore
+import fi.tyovuorolukija.data.PayTotals
+import fi.tyovuorolukija.data.ScannedDay
 import fi.tyovuorolukija.data.ScannedPeriod
 import fi.tyovuorolukija.data.YearSummary
 import fi.tyovuorolukija.ocr.ShiftListRecognizer
@@ -85,16 +87,24 @@ data class ShiftRow(
 data class UndoableBatch(val id: Long, val calendarName: String)
 
 sealed interface UiState {
-    data class Idle(
+    data class Home(
         val undoable: UndoableBatch? = null,
         val hasHistory: Boolean = false,
     ) : UiState
+
+    /** Kameranäkymä. Avautuu vasta valikosta, ei sovelluksen käynnistyessä. */
+    data object Scanning : UiState
+
+    data class Settings(val payForm: PayForm) : UiState
+    data class Tes(val payForm: PayForm) : UiState
 
     data class Working(val step: String) : UiState
 
     data class History(
         val periods: List<ScannedPeriod>,
         val years: List<YearSummary>,
+        val days: List<ScannedDay>,
+        val totals: PayTotals,
     ) : UiState
 
     data class Review(
@@ -163,7 +173,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val paySettings = PaySettingsStore(app)
     private val history = HistoryRepository(app)
 
-    private val _state = MutableStateFlow<UiState>(UiState.Idle())
+    private val _state = MutableStateFlow<UiState>(UiState.Home())
     val state: StateFlow<UiState> = _state.asStateFlow()
 
     init {
@@ -171,12 +181,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun reset() {
-        _state.value = UiState.Idle()
+        _state.value = UiState.Home()
         viewModelScope.launch {
             val batch = runCatching { calendars.lastBatch() }.getOrNull()
             val hasHistory = runCatching { !history.isEmpty() }.getOrDefault(false)
             _state.update { current ->
-                if (current !is UiState.Idle) current
+                if (current !is UiState.Home) current
                 else current.copy(
                     undoable = batch?.let { UndoableBatch(it.id, it.calendarName) },
                     hasHistory = hasHistory,
@@ -185,10 +195,28 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun openScan() {
+        _state.value = UiState.Scanning
+    }
+
+    fun openSettings() {
+        _state.value = UiState.Settings(paySettings.load())
+    }
+
+    fun openTes() {
+        _state.value = UiState.Tes(paySettings.load())
+    }
+
     fun openHistory() {
         viewModelScope.launch {
             val periods = runCatching { history.all() }.getOrDefault(emptyList())
-            _state.value = UiState.History(periods, history.yearSummaries(periods))
+            val days = runCatching { history.days() }.getOrDefault(emptyList())
+            _state.value = UiState.History(
+                periods = periods,
+                years = history.yearSummaries(periods),
+                days = days,
+                totals = history.totals(periods),
+            )
         }
     }
 
@@ -294,7 +322,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun updatePayForm(form: PayForm) {
         paySettings.save(form)
-        updateReview { it.copy(payForm = form) }
+        _state.update { current ->
+            when (current) {
+                is UiState.Review -> current.copy(payForm = form)
+                is UiState.Settings -> current.copy(payForm = form)
+                else -> current
+            }
+        }
     }
 
     private fun formatPercent(value: Double): String =

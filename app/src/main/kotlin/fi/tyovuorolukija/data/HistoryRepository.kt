@@ -14,6 +14,25 @@ import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.LocalDate
 
+/** Koko historian palkkakertymä. */
+data class PayTotals(
+    val periods: Int,
+    val totalMinutes: Long,
+    val supplementsCents: Long?,
+    val grossCents: Long?,
+    val taxCents: Long?,
+    val contributionsCents: Long?,
+    val netCents: Long?,
+) {
+    /** Lisien osuus bruttosta prosentteina — kertoo paljonko epämukava työaika tuo. */
+    val supplementShare: Double?
+        get() {
+            val g = grossCents ?: return null
+            val s = supplementsCents ?: return null
+            return if (g == 0L) null else s * 100.0 / g
+        }
+}
+
 /** Vuosikohtainen yhteenveto historiasta. */
 data class YearSummary(
     val year: Int,
@@ -29,11 +48,28 @@ data class YearSummary(
 
 class HistoryRepository(context: Context) {
 
-    private val dao = ShiftDatabase.get(context).scannedPeriods()
+    private val db = ShiftDatabase.get(context)
+    private val dao = db.scannedPeriods()
+    private val dayDao = db.scannedDays()
 
     suspend fun all(): List<ScannedPeriod> = withContext(Dispatchers.IO) { dao.all() }
 
+    suspend fun days(): List<ScannedDay> = withContext(Dispatchers.IO) { dayDao.all() }
+
     suspend fun isEmpty(): Boolean = withContext(Dispatchers.IO) { dao.count() == 0 }
+
+    /** Koko historian kertymä. Null-summat jätetään pois, ei nollata. */
+    fun totals(periods: List<ScannedPeriod>) = PayTotals(
+        periods = periods.size,
+        totalMinutes = periods.sumOf { it.totalMinutes },
+        supplementsCents = periods.mapNotNull { it.supplementsCents }.sumOrNull(),
+        grossCents = periods.mapNotNull { it.grossCents }.sumOrNull(),
+        taxCents = periods.mapNotNull { it.taxCents }.sumOrNull(),
+        contributionsCents = periods.mapNotNull { it.contributionsCents }.sumOrNull(),
+        netCents = periods.mapNotNull { it.netCents }.sumOrNull(),
+    )
+
+    private fun List<Long>.sumOrNull(): Long? = if (isEmpty()) null else sum()
 
     /**
      * Tallentaa jakson historiaan. Sama päiväväli korvaa aiemman rivin, jotta
@@ -51,6 +87,30 @@ class HistoryRepository(context: Context) {
     ) = withContext(Dispatchers.IO) {
         val supplements = SupplementHours.of(shifts)
         val rhythm = ShiftRhythm.of(shifts, freeDays)
+        val periodKey = "${range.start}..${range.endInclusive}"
+
+        // Päiväkohtainen data kalenterinäkymää varten. Kirjoitetaan uusiksi, jotta
+        // uudelleenskannaus ei jätä vanhoja päiviä roikkumaan.
+        dayDao.deleteForPeriod(periodKey)
+        dayDao.insertAll(
+            shifts.map {
+                ScannedDay(
+                    periodKey = periodKey,
+                    date = it.date.toString(),
+                    code = it.code,
+                    isFree = false,
+                    minutes = java.time.temporal.ChronoUnit.MINUTES.between(it.start, it.end),
+                )
+            } + freeDays.map {
+                ScannedDay(
+                    periodKey = periodKey,
+                    date = it.date.toString(),
+                    code = "V",
+                    isFree = true,
+                    minutes = 0,
+                )
+            }
+        )
 
         dao.upsert(
             ScannedPeriod(
@@ -81,6 +141,8 @@ class HistoryRepository(context: Context) {
                 supplementsCents = pay?.supplementsTotal?.cents(),
                 grossCents = pay?.gross?.cents(),
                 netCents = pay?.net?.cents(),
+                taxCents = pay?.tax?.cents(),
+                contributionsCents = pay?.contributions?.cents(),
             )
         )
     }

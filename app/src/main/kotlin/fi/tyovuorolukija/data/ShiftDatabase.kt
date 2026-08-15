@@ -130,7 +130,48 @@ data class ScannedPeriod(
     val supplementsCents: Long?,
     val grossCents: Long?,
     val netCents: Long?,
+    val taxCents: Long? = null,
+    val contributionsCents: Long? = null,
+) {
+    /** Vakaa avain jaksolle. Rivin id vaihtuu kun sama jakso skannataan uudestaan. */
+    val key: String get() = "$rangeStart..$rangeEnd"
+}
+
+/**
+ * Yksi päivä jaksossa. Tarpeen kalenterinäkymää varten — jakson yhteenvetoluvuista
+ * ei voi piirtää päiväkohtaista ruudukkoa.
+ *
+ * Kytketty jaksoon [periodKey]:llä eikä id:llä, koska jakson rivi korvataan
+ * kokonaan kun sama jakso skannataan uudestaan ja id vaihtuu silloin.
+ */
+@Entity(
+    tableName = "scanned_days",
+    indices = [Index(value = ["periodKey", "date"], unique = true)],
 )
+data class ScannedDay(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val periodKey: String,
+    val date: String,
+    val code: String?,
+    val isFree: Boolean,
+    val minutes: Long,
+)
+
+@Dao
+interface ScannedDayDao {
+
+    @Query("SELECT * FROM scanned_days WHERE periodKey = :periodKey ORDER BY date")
+    suspend fun forPeriod(periodKey: String): List<ScannedDay>
+
+    @Query("SELECT * FROM scanned_days ORDER BY date")
+    suspend fun all(): List<ScannedDay>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(days: List<ScannedDay>)
+
+    @Query("DELETE FROM scanned_days WHERE periodKey = :periodKey")
+    suspend fun deleteForPeriod(periodKey: String)
+}
 
 @Dao
 interface ScannedPeriodDao {
@@ -200,14 +241,18 @@ interface SyncBatchDao {
 }
 
 @Database(
-    entities = [SyncedShift::class, SyncBatch::class, SyncAction::class, ScannedPeriod::class],
-    version = 3,
+    entities = [
+        SyncedShift::class, SyncBatch::class, SyncAction::class,
+        ScannedPeriod::class, ScannedDay::class,
+    ],
+    version = 4,
     exportSchema = false,
 )
 abstract class ShiftDatabase : RoomDatabase() {
     abstract fun syncedShifts(): SyncedShiftDao
     abstract fun syncBatches(): SyncBatchDao
     abstract fun scannedPeriods(): ScannedPeriodDao
+    abstract fun scannedDays(): ScannedDayDao
 
     companion object {
         /**
@@ -288,6 +333,30 @@ abstract class ShiftDatabase : RoomDatabase() {
             }
         }
 
+        /** v3 -> v4: päiväkohtainen data kalenterinäkymää varten + vero ja vähennykset. */
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `scanned_days` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`periodKey` TEXT NOT NULL, " +
+                        "`date` TEXT NOT NULL, " +
+                        "`code` TEXT, " +
+                        "`isFree` INTEGER NOT NULL, " +
+                        "`minutes` INTEGER NOT NULL)"
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS " +
+                        "`index_scanned_days_periodKey_date` ON `scanned_days` " +
+                        "(`periodKey`, `date`)"
+                )
+                db.execSQL("ALTER TABLE `scanned_periods` ADD COLUMN `taxCents` INTEGER")
+                db.execSQL(
+                    "ALTER TABLE `scanned_periods` ADD COLUMN `contributionsCents` INTEGER"
+                )
+            }
+        }
+
         @Volatile
         private var instance: ShiftDatabase? = null
 
@@ -296,7 +365,7 @@ abstract class ShiftDatabase : RoomDatabase() {
                 context.applicationContext,
                 ShiftDatabase::class.java,
                 "tyovuorolukija.db",
-            ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build().also { instance = it }
+            ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build().also { instance = it }
         }
     }
 }

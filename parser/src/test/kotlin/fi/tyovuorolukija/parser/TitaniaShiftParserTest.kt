@@ -85,6 +85,29 @@ class TitaniaShiftParserTest {
     }
 
     @Test
+    fun `yovuoro yhdistyy vaikka OCR palauttaisi rivit vaarassa jarjestyksessa`() {
+        // Havaittu oikealla valokuvalla: ML Kit palautti päivän jatkorivin ja uuden
+        // yön alkurivin väärin päin, jolloin "0000-0712" jäi erilliseksi vuoroksi.
+        val sekaisin = """
+                        suunnitelma  toteutunut  selite
+            24.08 ma    y 2100-2400  y 2100-2400
+            25.08 ti    y 2100-2400  y 2100-2400
+                          0000-0712    0000-0712
+            26.08 ke      0000-0710    0000-0710
+            tunnit yhteensä
+        """.trimIndent().lines()
+
+        val result = TitaniaShiftParser(firstYear = 2026).parse(sekaisin)
+
+        assertEquals(2, result.shifts.size, "kaksi yövuoroa, ei neljää palasta")
+        assertEquals(dt("2026-08-24T21:00"), result.shifts[0].start)
+        assertEquals(dt("2026-08-25T07:12"), result.shifts[0].end)
+        assertEquals(dt("2026-08-25T21:00"), result.shifts[1].start)
+        assertEquals(dt("2026-08-26T07:10"), result.shifts[1].end)
+        assertEquals(emptyList<String>(), result.warnings)
+    }
+
+    @Test
     fun `vuosi vaihtuu kun kuukausi pienenee`() {
         val result = TitaniaShiftParser(firstYear = 2026).parse(Fixtures.YEAR_ROLLOVER)
 

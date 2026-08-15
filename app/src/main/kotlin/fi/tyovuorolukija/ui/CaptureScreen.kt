@@ -16,12 +16,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.PhotoCamera
-import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material3.Button
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -50,12 +47,10 @@ private const val TAG = "CaptureScreen"
 @Composable
 fun CaptureScreen(
     hasCameraPermission: Boolean,
-    undoable: UndoableBatch?,
     onRequestCameraPermission: () -> Unit,
     onPickFromGallery: () -> Unit,
     onImage: (Uri) -> Unit,
-    onUndo: () -> Unit,
-    onOpenHistory: (() -> Unit)?,
+    onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -111,22 +106,8 @@ fun CaptureScreen(
                 Text("  Valitse kuva galleriasta")
             }
 
-            if (undoable != null || onOpenHistory != null) {
-                HorizontalDivider(Modifier.padding(vertical = 4.dp))
-            }
-            onOpenHistory?.let { open ->
-                TextButton(onClick = open, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Default.Insights, contentDescription = null)
-                    Text("  Historia ja tilastot")
-                }
-            }
-            // Virheen huomaa usein vasta kalenterista — siksi kumous on tarjolla
-            // vielä senkin jälkeen kun tallennusnäkymästä on poistuttu.
-            if (undoable != null) {
-                TextButton(onClick = onUndo, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = null)
-                    Text("  Kumoa edellinen tallennus (${undoable.calendarName})")
-                }
+            TextButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
+                Text("Takaisin")
             }
         }
     }

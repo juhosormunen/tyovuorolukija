@@ -268,7 +268,12 @@ class TitaniaShiftParser(
                 "onko kuvassa koko tuloste?"
         }
 
-        val shifts = mergeNightShifts(entries, warnings)
+        // Järjestetään ajan mukaan ennen yhdistämistä. ML Kit ei takaa rivien
+        // järjestystä: jos päivän kaksi riviä ("0000-0712" ja "y 2100-2400")
+        // tulevat väärin päin, yövuoron jatko jäisi löytymättä ja päätyisi
+        // erilliseksi vuoroksi. Tämä on havaittu oikealla valokuvalla.
+        val ordered = entries.sortedWith(compareBy({ it.date }, { it.start }))
+        val shifts = mergeNightShifts(ordered, warnings)
         return ParseResult(
             shifts, freeDays, warnings, ignored, parseSummary(summaryLines), partTimePercent,
         )
