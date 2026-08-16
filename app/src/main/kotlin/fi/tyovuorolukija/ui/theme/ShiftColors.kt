@@ -42,11 +42,14 @@ object ShiftColors {
         (it shr 32).toInt()
     }
 
-    /** Selite ikonin kehälle ja mahdolliselle värilegendalle. */
+    /**
+     * Selite värilegendalle. Käyttää pelkkää nimeä ilman koodia — selitteessä
+     * "Aamu (A)" olisi turhaa toistoa, koska koodi näkyy jo kalenteriruudussa.
+     */
     val legend: List<Pair<String, Color>> = listOf(
-        ShiftCodes.title("A") to Morning,
-        ShiftCodes.title("I") to Evening,
-        ShiftCodes.title("Y") to Night,
-        ShiftCodes.title("V") to Free,
+        ShiftCodes.name("A") to Morning,
+        ShiftCodes.name("I") to Evening,
+        ShiftCodes.name("Y") to Night,
+        ShiftCodes.name("V") to Free,
     )
 }

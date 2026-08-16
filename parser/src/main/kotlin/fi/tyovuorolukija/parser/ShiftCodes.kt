@@ -1,37 +1,51 @@
 package fi.tyovuorolukija.parser
 
 /**
- * Titania-tulosteen vuorokoodit.
+ * Titania-tulosteen vuorokoodit ja niistä muodostettavat nimet.
  *
- * **Kirjainkoolla ei ole merkitystä.** Tuloste käyttää sekaisin isoja ja pieniä
- * kirjaimia (`y` ja `Y`, `i` ja `I`), eikä eron merkitystä ole toistaiseksi
- * tarpeen selvittää — koodit tulkitaan samoiksi eikä kirjainkoosta varoiteta.
- * Alkuperäinen kirjoitusasu säilyy kalenteritapahtuman kuvauksessa.
+ * Nimeämismuoto on **`Nimi (koodi)`**, esim. `Yö (y)`. Se on sama muoto jota
+ * kalenterimerkinnöissä on käytetty käsin, ja koska sovelluksen ja käsin tehdyt
+ * merkinnät päätyvät samaan kalenteriin, yhtenäinen muoto vähentää sekaannusta.
+ * Koodi näkyy sulkeissa **alkuperäisessä kirjoitusasussaan**, joten tulosteen
+ * `y` ja `Y` erottuvat toisistaan vaikka ne tulkitaan samaksi vuorotyypiksi.
  *
- * Koodien merkitykset on varmistettu käyttäjältä:
- * - `A` aamu, `I` ilta, `Y` yö, `V` vapaa
- * - `E` on pitkä vuoro (aamusta iltaan)
- * - `U` ei ole vuorotyyppi lainkaan vaan sisäinen merkintä siitä, mitä vuoron
- *   aikana tehdään. Käsin tehdyissä kalenterimerkinnöissä siitä on käytetty
- *   nimeä "U-päivä", joten sama nimi täällä.
+ * Poikkeus: `U` ei ole vuorotyyppi lainkaan vaan sisäinen merkintä siitä, mitä
+ * vuoron aikana tehdään. Sille ei siis ole "vuoron nimeä" johon koodin voisi
+ * liittää, vaan se on pelkkä `U-päivä`.
  *
- * Tuntemattomista koodeista varoitetaan edelleen ([isUnknown]) — tulosteissa on
- * havaittu ainakin `R` ja `D`, joiden merkitystä ei tiedetä.
+ * **Kirjainkoolla ei ole merkitystä tulkinnassa** eikä siitä varoiteta. Sen sijaan
+ * aidosti tuntemattomista koodeista varoitetaan ([isUnknown]) — tulosteissa on
+ * nähty ainakin `R` ja `D`, joiden merkitys on selvittämättä.
  */
 object ShiftCodes {
 
-    private val TITLES = mapOf(
-        "A" to "Aamuvuoro",
-        "I" to "Iltavuoro",
-        "Y" to "Yövuoro",
+    /** Vuorotyypin nimi ilman koodia. */
+    private val NAMES = mapOf(
+        "A" to "Aamu",
+        "I" to "Ilta",
+        "Y" to "Yö",
         "V" to "Vapaa",
-        "E" to "Pitkä vuoro",
+        "E" to "Pitkä",
+    )
+
+    /** Koodit joilla ei ole vuorotyyppiä — nimi sellaisenaan, ilman sulkeita. */
+    private val STANDALONE = mapOf(
         "U" to "U-päivä",
     )
 
+    /** Nimi ilman koodia, esim. selitteisiin: "Yö". */
+    fun name(code: String?): String {
+        if (code == null) return "Työvuoro"
+        val key = code.uppercase()
+        return NAMES[key] ?: STANDALONE[key] ?: "Vuoro"
+    }
+
+    /** Kalenteritapahtuman ja listan otsikko, esim. "Yö (y)" tai "U-päivä". */
     fun title(code: String?): String {
         if (code == null) return "Työvuoro"
-        return TITLES[code.uppercase()] ?: "Vuoro $code"
+        val key = code.uppercase()
+        STANDALONE[key]?.let { return it }
+        return "${NAMES[key] ?: "Vuoro"} ($code)"
     }
 
     /**
@@ -40,6 +54,7 @@ object ShiftCodes {
      */
     fun isUnknown(code: String?): Boolean {
         if (code == null) return false
-        return !TITLES.containsKey(code.uppercase())
+        val key = code.uppercase()
+        return !NAMES.containsKey(key) && !STANDALONE.containsKey(key)
     }
 }

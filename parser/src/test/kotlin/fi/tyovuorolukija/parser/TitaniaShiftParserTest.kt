@@ -208,18 +208,33 @@ class TitaniaShiftParserTest {
     }
 
     @Test
-    fun `vuorokoodien otsikot`() {
-        assertEquals("Yövuoro", ShiftCodes.title("y"))
-        assertEquals("Aamuvuoro", ShiftCodes.title("A"))
-        assertEquals("Pitkä vuoro", ShiftCodes.title("E"))
-        assertEquals("U-päivä", ShiftCodes.title("U"))
+    fun `vuorokoodien otsikot ovat muotoa nimi ja koodi sulkeissa`() {
+        assertEquals("Yö (y)", ShiftCodes.title("y"))
+        assertEquals("Aamu (A)", ShiftCodes.title("A"))
+        assertEquals("Ilta (i)", ShiftCodes.title("i"))
+        assertEquals("Pitkä (E)", ShiftCodes.title("E"))
         assertEquals("Työvuoro", ShiftCodes.title(null))
+        // Tuntematon koodi: nimeä ei tiedetä, mutta koodi näytetään.
+        assertEquals("Vuoro (R)", ShiftCodes.title("R"))
     }
 
     @Test
-    fun `kirjainkoko ei vaikuta tulkintaan eika tuota varoitusta`() {
+    fun `U ei ole vuorotyyppi joten se on pelkka U-paiva`() {
+        assertEquals("U-päivä", ShiftCodes.title("U"))
+        assertEquals("U-päivä", ShiftCodes.title("u"))
+        assertEquals("U-päivä", ShiftCodes.name("U"))
+    }
+
+    @Test
+    fun `koodin kirjoitusasu sailyy otsikossa mutta ei vaikuta tulkintaan`() {
+        // Sama vuorotyyppi, eri kirjoitusasu -> sama nimi, eri sulkeissa oleva koodi.
+        assertEquals("Yö", ShiftCodes.name("y"))
+        assertEquals("Yö", ShiftCodes.name("Y"))
+        assertEquals("Yö (y)", ShiftCodes.title("y"))
+        assertEquals("Yö (Y)", ShiftCodes.title("Y"))
+
         listOf("a" to "A", "i" to "I", "y" to "Y", "e" to "E", "u" to "U").forEach { (low, up) ->
-            assertEquals(ShiftCodes.title(up), ShiftCodes.title(low), "koodi $low vs $up")
+            assertEquals(ShiftCodes.name(up), ShiftCodes.name(low), "koodi $low vs $up")
             assertFalse(ShiftCodes.isUnknown(low), "koodi $low ei saa varoittaa")
             assertFalse(ShiftCodes.isUnknown(up), "koodi $up ei saa varoittaa")
         }
