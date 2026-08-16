@@ -1,5 +1,6 @@
 package fi.tyovuorolukija.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -16,6 +17,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -63,12 +65,13 @@ fun CleanupScreen(
     onRangeChange: (String, String) -> Unit,
     onSelectCalendar: (Long) -> Unit,
     onSearch: () -> Unit,
-    onDelete: () -> Unit,
+    onDelete: (Boolean) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var calendarMenuOpen by remember { mutableStateOf(false) }
     var confirmOpen by remember { mutableStateOf(false) }
+    var alsoDeleteHistory by remember { mutableStateOf(false) }
 
     val selected = state.calendars.firstOrNull { it.id == state.selectedCalendarId }
     val zone = ZoneId.systemDefault()
@@ -80,14 +83,20 @@ fun CleanupScreen(
             title = { Text("Poistetaanko ${state.found.size} tapahtumaa?") },
             text = {
                 Text(
-                    "Poisto koskee vain Työvuorolukijan luomia tapahtumia välillä " +
-                        "${state.from} – ${state.to}. Muut kalenterimerkinnät säilyvät. " +
-                        "Tätä ei voi kumota."
+                    buildString {
+                        append("Poisto koskee vain Työvuorolukijan luomia tapahtumia ")
+                        append("välillä ${state.from} – ${state.to}. ")
+                        append("Muut kalenterimerkinnät säilyvät. ")
+                        if (alsoDeleteHistory) {
+                            append("Myös näiden jaksojen tilastot poistetaan historiasta. ")
+                        }
+                        append("Tätä ei voi kumota.")
+                    }
                 )
             },
             confirmButton = {
                 Button(
-                    onClick = { confirmOpen = false; onDelete() },
+                    onClick = { confirmOpen = false; onDelete(alsoDeleteHistory) },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.error,
                     ),
@@ -238,6 +247,21 @@ fun CleanupScreen(
 
             if (state.found.isNotEmpty()) {
                 item {
+                    Row(
+                        Modifier.fillMaxWidth().clickable {
+                            alsoDeleteHistory = !alsoDeleteHistory
+                        },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(
+                            checked = alsoDeleteHistory,
+                            onCheckedChange = { alsoDeleteHistory = it },
+                        )
+                        Text(
+                            "Poista myös näiden jaksojen tilastot historiasta",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
                     Button(
                         onClick = { confirmOpen = true },
                         enabled = !state.busy,

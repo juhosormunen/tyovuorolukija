@@ -58,6 +58,36 @@ class HistoryRepository(context: Context) {
 
     suspend fun isEmpty(): Boolean = withContext(Dispatchers.IO) { dao.count() == 0 }
 
+    /**
+     * Poistaa yhden jakson historiasta.
+     *
+     * **Ei koske kalenteriin.** Historia on tilastokirjanpitoa; kalenteritapahtumat
+     * poistetaan erikseen siivousnäkymästä. Ei myöskään kosketa idempotenssin
+     * mäppäykseen (`synced_shifts`), joten saman jakson uudelleenskannaus löytää
+     * yhä aiemmin luodut tapahtumat eikä kahdenna niitä.
+     */
+    suspend fun deletePeriod(period: ScannedPeriod) = withContext(Dispatchers.IO) {
+        dayDao.deleteForPeriod(period.key)
+        dao.deleteById(period.id)
+    }
+
+    /** Poistaa historiasta jaksot jotka osuvat annetulle aikavälille. */
+    suspend fun deleteOverlapping(from: LocalDate, to: LocalDate): Int =
+        withContext(Dispatchers.IO) {
+            val hits = dao.overlapping(from.toString(), to.toString())
+            hits.forEach { period ->
+                dayDao.deleteForPeriod(period.key)
+                dao.deleteById(period.id)
+            }
+            hits.size
+        }
+
+    /** Tyhjentää koko historian. Kalenteri ja idempotenssi säilyvät koskemattomina. */
+    suspend fun deleteAll() = withContext(Dispatchers.IO) {
+        dayDao.deleteAll()
+        dao.deleteAll()
+    }
+
     /** Koko historian kertymä. Null-summat jätetään pois, ei nollata. */
     fun totals(periods: List<ScannedPeriod>) = PayTotals(
         periods = periods.size,

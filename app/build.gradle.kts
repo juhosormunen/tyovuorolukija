@@ -26,8 +26,8 @@ android {
         // Nosta molempia jokaisella jaettavalla käännöksellä. versionCode ratkaisee
         // päivittyykö sovellus laitteella; versionName on se mitä käyttäjä näkee
         // Tietoa sovelluksesta -näkymässä ja voi kertoa eteenpäin.
-        versionCode = 2
-        versionName = "0.2"
+        versionCode = 3
+        versionName = "0.3"
     }
 
     signingConfigs {

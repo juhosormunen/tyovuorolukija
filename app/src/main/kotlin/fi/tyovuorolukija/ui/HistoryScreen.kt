@@ -1,5 +1,6 @@
 package fi.tyovuorolukija.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -9,10 +10,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -53,10 +61,91 @@ fun HistoryScreen(
     years: List<YearSummary>,
     days: List<fi.tyovuorolukija.data.ScannedDay>,
     totals: fi.tyovuorolukija.data.PayTotals,
+    onDeletePeriod: (ScannedPeriod, Boolean) -> Unit,
+    onClearAll: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var tableOpen by remember { mutableStateOf(false) }
+    var pendingDelete by remember { mutableStateOf<ScannedPeriod?>(null) }
+    var alsoDeleteCalendar by remember { mutableStateOf(false) }
+    var confirmClearAll by remember { mutableStateOf(false) }
+
+    // Poisto koskee vain tilastoja. Se sanotaan molemmissa vahvistuksissa, koska
+    // "poista jakso" voisi aivan hyvin tarkoittaa kalenterimerkintöjen poistoa.
+    pendingDelete?.let { period ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("Poistetaanko jakso historiasta?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        "${LocalDate.parse(period.rangeStart).format(SHORT_DATE)}–" +
+                            "${LocalDate.parse(period.rangeEnd).format(SHORT_DATE)}, " +
+                            "${hours(period.totalMinutes)} h."
+                    )
+                    Text(
+                        if (alsoDeleteCalendar) {
+                            "Jakso poistuu tilastoista, ja lisäksi sovelluksen luomat " +
+                                "kalenterimerkinnät tältä ajanjaksolta poistetaan. " +
+                                "Muihin merkintöihin ei kosketa."
+                        } else {
+                            "Jakso poistuu vain tilastoista. Kalenterimerkinnät säilyvät."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Row(
+                        Modifier.clickable { alsoDeleteCalendar = !alsoDeleteCalendar },
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                    ) {
+                        Checkbox(
+                            checked = alsoDeleteCalendar,
+                            onCheckedChange = { alsoDeleteCalendar = it },
+                        )
+                        Text(
+                            "Poista myös kalenterimerkinnät",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDeletePeriod(period, alsoDeleteCalendar)
+                        pendingDelete = null
+                        alsoDeleteCalendar = false
+                    },
+                ) { Text("Poista", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { pendingDelete = null; alsoDeleteCalendar = false },
+                ) { Text("Peruuta") }
+            },
+        )
+    }
+
+    if (confirmClearAll) {
+        AlertDialog(
+            onDismissRequest = { confirmClearAll = false },
+            title = { Text("Tyhjennetäänkö koko historia?") },
+            text = {
+                Text(
+                    "Kaikki ${periods.size} jaksoa poistuvat tilastoista. " +
+                        "Kalenterimerkinnät säilyvät. Tätä ei voi kumota."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { onClearAll(); confirmClearAll = false }) {
+                    Text("Tyhjennä", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmClearAll = false }) { Text("Peruuta") }
+            },
+        )
+    }
 
     if (periods.isEmpty()) {
         Column(
@@ -105,12 +194,7 @@ fun HistoryScreen(
                         val periodDays = days.filter { it.periodKey == period.key }
                         if (periodDays.isEmpty()) return@forEach
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(
-                                "${LocalDate.parse(period.rangeStart).format(SHORT_DATE)}–" +
-                                    "${LocalDate.parse(period.rangeEnd).format(SHORT_DATE)}" +
-                                    "  ·  ${hours(period.totalMinutes)} h",
-                                style = MaterialTheme.typography.labelLarge,
-                            )
+                            PeriodHeader(period) { pendingDelete = period }
                             PeriodCalendar(
                                 days = periodDays,
                                 rangeStart = LocalDate.parse(period.rangeStart),
@@ -235,6 +319,41 @@ fun HistoryScreen(
             if (tableOpen) PeriodTable(periods)
         }
 
+        // Jaksot listana myös ilman kalenteriruudukkoa: vanhoilta jaksoilta ei ole
+        // päiväkohtaista dataa, joten ne eivät näy rytmiosiossa lainkaan — mutta
+        // nekin pitää voida poistaa.
+        item {
+            HorizontalDivider()
+            Text(
+                "Poista jaksoja",
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            Text(
+                "Poisto koskee vain tilastoja. Kalenterimerkinnät säilyvät.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        items(periods, key = { it.id }) { period ->
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                ),
+            ) {
+                PeriodHeader(period, Modifier.padding(horizontal = 12.dp)) {
+                    pendingDelete = period
+                }
+            }
+        }
+
+        item {
+            TextButton(onClick = { confirmClearAll = true }) {
+                Text("Tyhjennä koko historia", color = MaterialTheme.colorScheme.error)
+            }
+        }
+
         item { TextButton(onClick = onBack) { Text("Takaisin") } }
     }
 }
@@ -312,6 +431,34 @@ private fun SinglePeriodBreakdown(period: ScannedPeriod) {
                     ValueRow("Lyhin lepo vuorojen välissä", hours(it))
                 }
             }
+        }
+    }
+}
+
+/** Jakson otsikkorivi päivineen, tunteineen ja poistopainikkeineen. */
+@Composable
+private fun PeriodHeader(
+    period: ScannedPeriod,
+    modifier: Modifier = Modifier,
+    onDelete: () -> Unit,
+) {
+    Row(
+        modifier.fillMaxWidth(),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+    ) {
+        Text(
+            "${LocalDate.parse(period.rangeStart).format(SHORT_DATE)}–" +
+                "${LocalDate.parse(period.rangeEnd).format(SHORT_DATE)}" +
+                "  ·  ${hours(period.totalMinutes)} h  ·  ${period.shiftCount} vuoroa",
+            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(onClick = onDelete) {
+            Icon(
+                Icons.Default.DeleteOutline,
+                contentDescription = "Poista jakso historiasta",
+                tint = MaterialTheme.colorScheme.error,
+            )
         }
     }
 }

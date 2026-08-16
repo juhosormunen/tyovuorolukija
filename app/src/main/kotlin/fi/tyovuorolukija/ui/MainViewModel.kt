@@ -244,6 +244,46 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _state.value = UiState.About
     }
 
+    /**
+     * Poistaa jakson historiasta. Kalenteritapahtumiin ei kosketa — ne poistetaan
+     * erikseen siivousnäkymästä, ja käyttäjälle kerrotaan tämä ennen poistoa.
+     */
+    fun deleteHistoryPeriod(period: ScannedPeriod, alsoCalendar: Boolean) {
+        viewModelScope.launch {
+            runCatching { history.deletePeriod(period) }
+            if (alsoCalendar) {
+                runCatching {
+                    calendars.deleteAppEventsInRange(
+                        LocalDate.parse(period.rangeStart),
+                        LocalDate.parse(period.rangeEnd),
+                    )
+                }
+            }
+            reloadHistory()
+        }
+    }
+
+    fun clearHistory() {
+        viewModelScope.launch {
+            runCatching { history.deleteAll() }
+            reloadHistory()
+        }
+    }
+
+    private suspend fun reloadHistory() {
+        val periods = runCatching { history.all() }.getOrDefault(emptyList())
+        val days = runCatching { history.days() }.getOrDefault(emptyList())
+        _state.update { current ->
+            if (current !is UiState.History) current
+            else UiState.History(
+                periods = periods,
+                years = history.yearSummaries(periods),
+                days = days,
+                totals = history.totals(periods),
+            )
+        }
+    }
+
     fun openCleanup() {
         // Oletusväliksi kuluva kuukausi ja seuraava — kattaa tyypillisen jakson.
         val today = LocalDate.now()
@@ -292,21 +332,31 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun deleteCleanup() {
+    fun deleteCleanup(alsoHistory: Boolean) {
         val s = _state.value as? UiState.Cleanup ?: return
         val ids = s.found.map { it.id }
         if (ids.isEmpty()) return
+        val from = s.fromDate
+        val to = s.toDate
 
         viewModelScope.launch {
             updateCleanup { it.copy(busy = true, message = null) }
             val result = runCatching { calendars.deleteEvents(ids) }
+            val removedPeriods = if (alsoHistory && from != null && to != null) {
+                runCatching { history.deleteOverlapping(from, to) }.getOrDefault(0)
+            } else 0
             result.fold(
                 onSuccess = { count ->
                     updateCleanup {
                         it.copy(
                             busy = false,
                             found = emptyList(),
-                            message = "Poistettu $count tapahtumaa.",
+                            message = buildString {
+                                append("Poistettu $count tapahtumaa.")
+                                if (alsoHistory) {
+                                    append(" Historiasta poistettiin $removedPeriods jaksoa.")
+                                }
+                            },
                         )
                     }
                 },

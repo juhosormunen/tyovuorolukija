@@ -461,6 +461,27 @@ class CalendarRepository(private val context: Context) {
         out
     }
 
+    /**
+     * Poistaa sovelluksen luomat tapahtumat aikaväliltä **kaikista** kirjoitettavista
+     * kalentereista.
+     *
+     * Kalentereita käydään läpi useampi siksi, ettei tallennuskalenteri ole
+     * välttämättä tiedossa: erätiedot siivotaan vanhentuessaan, ja jakso on voitu
+     * tallentaa eri kalenteriin kuin mikä nyt on valittuna. Vain sovelluksen omalla
+     * tunnisteella merkityt tapahtumat löytyvät, joten laajempi haku on turvallinen.
+     */
+    @SuppressLint("MissingPermission")
+    suspend fun deleteAppEventsInRange(from: LocalDate, to: LocalDate): Int =
+        withContext(Dispatchers.IO) {
+            var total = 0
+            for (calendar in runCatching { writableCalendars() }.getOrDefault(emptyList())) {
+                val events = runCatching { findAppEvents(calendar.id, from, to) }
+                    .getOrDefault(emptyList())
+                if (events.isNotEmpty()) total += deleteEvents(events.map { it.id })
+            }
+            total
+        }
+
     /** Poistaa annetut tapahtumat ja niitä vastaavan paikallisen kirjanpidon. */
     @SuppressLint("MissingPermission")
     suspend fun deleteEvents(ids: List<Long>): Int = withContext(Dispatchers.IO) {

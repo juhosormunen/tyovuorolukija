@@ -171,6 +171,9 @@ interface ScannedDayDao {
 
     @Query("DELETE FROM scanned_days WHERE periodKey = :periodKey")
     suspend fun deleteForPeriod(periodKey: String)
+
+    @Query("DELETE FROM scanned_days")
+    suspend fun deleteAll()
 }
 
 @Dao
@@ -185,8 +188,18 @@ interface ScannedPeriodDao {
     @Query("DELETE FROM scanned_periods WHERE batchId = :batchId")
     suspend fun deleteByBatch(batchId: Long)
 
+    @Query("DELETE FROM scanned_periods WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
+    @Query("DELETE FROM scanned_periods")
+    suspend fun deleteAll()
+
     @Query("SELECT COUNT(*) FROM scanned_periods")
     suspend fun count(): Int
+
+    /** Jaksot jotka menevät päällekkäin annetun välin kanssa. ISO-päiväys vertautuu merkkijonona. */
+    @Query("SELECT * FROM scanned_periods WHERE rangeStart <= :to AND rangeEnd >= :from")
+    suspend fun overlapping(from: String, to: String): List<ScannedPeriod>
 }
 
 @Dao

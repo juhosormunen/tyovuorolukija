@@ -220,6 +220,8 @@ private fun AppRoot(viewModel: MainViewModel = viewModel()) {
                 years = s.years,
                 days = s.days,
                 totals = s.totals,
+                onDeletePeriod = viewModel::deleteHistoryPeriod,
+                onClearAll = viewModel::clearHistory,
                 onBack = viewModel::reset,
                 modifier = content,
             )
