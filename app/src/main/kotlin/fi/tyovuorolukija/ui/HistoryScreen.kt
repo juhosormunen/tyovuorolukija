@@ -546,15 +546,13 @@ private fun SupplementChart(title: String, labels: List<String>, minutes: List<L
 @Composable
 private fun StatRow(periods: List<ScannedPeriod>) {
     val totalHours = periods.sumOf { it.totalMinutes }
-    val nightShifts = periods.sumOf { it.nightShiftCount }
     val shortRests = periods.sumOf { it.shortRestCount }
     val mismatches = periods.count { it.employerMatched == false }
 
+    // Yövuorojen määrä oli aiemmin myös tässä. Se on nyt Vuorotyypit-kortissa
+    // muiden vuorotyyppien rinnalla, eikä samaa lukua kannata näyttää kahdesti.
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatTile("Tunnit yhteensä", hours(totalHours), Modifier.weight(1f))
-            StatTile("Yövuoroja", nightShifts.toString(), Modifier.weight(1f))
-        }
+        StatTile("Tunnit yhteensä", hours(totalHours), Modifier.fillMaxWidth())
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StatTile(
                 "Alle 11 h lepoja", shortRests.toString(), Modifier.weight(1f),
