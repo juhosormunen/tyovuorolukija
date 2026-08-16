@@ -23,11 +23,17 @@ android {
         applicationId = "fi.tyovuorolukija"
         minSdk = 26          // java.time ilman desugarointia
         targetSdk = 35
-        // Nosta molempia jokaisella jaettavalla käännöksellä. versionCode ratkaisee
-        // päivittyykö sovellus laitteella; versionName on se mitä käyttäjä näkee
-        // Tietoa sovelluksesta -näkymässä ja voi kertoa eteenpäin.
+        // versionCode on koneelle: se ratkaisee onko paketti uudempi kuin asennettu.
+        // **Se ei voi koskaan pienentyä** — Android hylkää asennuksen
+        // (INSTALL_FAILED_VERSION_DOWNGRADE), ja ainoa kiertotie olisi sovelluksen
+        // poisto, joka veisi historian ja kalenterikirjanpidon. Nosta se siis
+        // jokaisella jaettavalla käännöksellä.
+        //
+        // versionName on ihmiselle: se näkyy aloitusnäkymässä ja Tietoa
+        // sovelluksesta -näkymässä. Sen voi pitää samana useamman käännöksen ajan,
+        // jolloin sulkeissa näkyvä versionCode erottaa ne toisistaan.
         versionCode = 3
-        versionName = "0.3"
+        versionName = "0.2"
     }
 
     signingConfigs {
