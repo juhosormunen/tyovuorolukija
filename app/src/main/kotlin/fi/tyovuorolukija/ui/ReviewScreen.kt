@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Warning
@@ -40,6 +41,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -278,31 +281,40 @@ private fun ShiftRowCard(row: ShiftRow, onChange: ((ShiftRow) -> ShiftRow) -> Un
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
+                // Kiinteä leveys on pakollinen: OutlinedTextFieldin oletusminimi on
+                // 280 dp, ja rajoittamattomana se puristaa yllä olevan otsikkosarakkeen
+                // nollaan leveydeltään. Kapeammalla näytöllä tai isommalla fonttikoolla
+                // otsikko ja lähderivi katosivat kokonaan.
                 OutlinedTextField(
                     value = row.code,
                     onValueChange = { code -> onChange { it.copy(code = code.take(2)) } },
-                    label = { Text("Koodi") },
+                    label = { Text("Koodi", style = MaterialTheme.typography.labelSmall) },
                     singleLine = true,
-                    modifier = Modifier.padding(start = 8.dp).background(androidx.compose.ui.graphics.Color.Transparent),
+                    textStyle = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(start = 8.dp).width(84.dp),
                 )
             }
 
             if (row.include) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Pienempi tekstityyli, jotta "24.08.2026 21:00" mahtuu puolikkaaseen
+                    // leveyteen katkeamatta.
                     OutlinedTextField(
                         value = row.startText,
                         onValueChange = { v -> onChange { it.copy(startText = v) } },
-                        label = { Text("Alkaa") },
+                        label = { Text("Alkaa", style = MaterialTheme.typography.labelSmall) },
                         isError = row.startError,
                         singleLine = true,
+                        textStyle = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.weight(1f),
                     )
                     OutlinedTextField(
                         value = row.endText,
                         onValueChange = { v -> onChange { it.copy(endText = v) } },
-                        label = { Text("Päättyy") },
+                        label = { Text("Päättyy", style = MaterialTheme.typography.labelSmall) },
                         isError = row.endError,
                         singleLine = true,
+                        textStyle = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -332,6 +344,19 @@ private fun DebugSection(state: UiState.Review, expanded: Boolean, onToggle: () 
         }
         AnimatedVisibility(expanded) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                // Etätuki: kun sovellus on jonkun toisen puhelimessa, vian selvitys
+                // ilman raakatekstiä on arvailua. Tällä sen saa lähetettyä eteenpäin.
+                val clipboard = LocalClipboardManager.current
+                var copied by remember { mutableStateOf(false) }
+                TextButton(
+                    onClick = {
+                        clipboard.setText(AnnotatedString(state.debugReport()))
+                        copied = true
+                    },
+                ) {
+                    Icon(Icons.Default.ContentCopy, contentDescription = null)
+                    Text(if (copied) "  Kopioitu leikepöydälle" else "  Kopioi tunnistustiedot")
+                }
                 if (state.warnings.isNotEmpty()) {
                     Text("Huomautukset:", style = MaterialTheme.typography.labelMedium)
                     state.warnings.forEach {

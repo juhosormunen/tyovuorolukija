@@ -173,6 +173,42 @@ sealed interface UiState {
                     ),
                 )
             }
+        /**
+         * Koko tunnistuksen tila tekstinä, leikepöydälle kopioitavaksi.
+         *
+         * Etätuen työkalu: kun sovellus on jonkun toisen puhelimessa, vian selvitys
+         * kuvakaappauksista on arvailua — tästä näkee mitä OCR luki ja mitä parseri
+         * siitä teki. Ei sisällä palkkatietoja.
+         */
+        fun debugReport(): String = buildString {
+            appendLine("== Työvuorolukija: tunnistustiedot ==")
+            appendLine("Vuoroja: ${rows.size}, vapaapäiviä: ${freeDays.size}")
+            dateRange?.let { appendLine("Jakso: ${it.start} – ${it.endInclusive}") }
+            printoutPartTime?.let { appendLine("Työaikaprosentti tulosteesta: $it") }
+            appendLine()
+            appendLine("-- Työnantajan erittely --")
+            appendLine("tunnit yhteensä: ${employerSummary.totalMinutes}")
+            appendLine("sunnuntaityö: ${employerSummary.sunday}")
+            appendLine("iltatyö: ${employerSummary.evening}")
+            appendLine("yötyö: ${employerSummary.night}")
+            appendLine("lauantaityö: ${employerSummary.saturday}")
+            appendLine()
+            appendLine("-- Tunnistetut vuorot --")
+            rows.forEach { appendLine("${it.code}\t${it.startText}\t${it.endText}\t${it.source}") }
+            appendLine()
+            appendLine("-- Vapaapäivät --")
+            freeDays.forEach { appendLine("${it.date}\t${it.source}") }
+            appendLine()
+            appendLine("-- Varoitukset --")
+            warnings.forEach { appendLine(it) }
+            appendLine()
+            appendLine("-- Ohitetut rivit --")
+            ignoredLines.forEach { appendLine(it) }
+            appendLine()
+            appendLine("-- OCR-teksti sellaisenaan --")
+            rawLines.forEach { appendLine(it) }
+        }
+
         val hasErrors: Boolean get() = rows.any { it.include && it.toShift() == null }
         val flaggedCount: Int get() = rows.count { it.include && it.flagged }
 
