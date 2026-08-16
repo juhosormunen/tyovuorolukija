@@ -340,11 +340,15 @@ private fun Centered(modifier: Modifier, content: @Composable () -> Unit) {
  * **Näkymätyyppiä ei voi määrätä julkisella rajapinnalla.** `content://…/time/<millis>`
  * kertoo vain *milloin*, ei *miten*; kalenterisovellus avaa sen näkymän jota
  * käyttäjä on viimeksi käyttänyt. Alla oleva `VIEW`-lisäparametri on peräisin
- * AOSP:n kalenterista ja osa sovelluksista tottelee sitä — se on siis toive,
- * ei takuu. Jos sovellus ohittaa sen, käytös on täsmälleen sama kuin ilman.
+ * AOSP:n kalenterista, ja **Google-kalenteri ohittaa sen** — testattu laitteella:
+ * päivänäkymässä ollut kalenteri avautui päivänäkymään lisäparametrista
+ * huolimatta. Se jätetään paikalleen siltä varalta että jokin muu
+ * kalenterisovellus tottelee sitä; haittaa siitä ei ole.
  *
- * Käytännön kiertotie käyttäjälle: kalenterisovellus muistaa viimeksi käytetyn
- * näkymän, joten kuukausinäkymän valitseminen kerran riittää.
+ * Toimiva tapa on käyttäjän puolella: kalenterisovellus muistaa viimeksi
+ * käytetyn näkymän. Kun Google-kalenterissa valitsee kerran valikosta Kuukausi,
+ * myös tämä painike avaa jatkossa kuukausinäkymän. Tämäkin on varmistettu
+ * laitteella.
  */
 private fun openCalendarAt(context: android.content.Context, millis: Long) {
     val uri = CalendarContract.CONTENT_URI.buildUpon()
