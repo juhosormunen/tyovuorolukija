@@ -196,13 +196,43 @@ Käännös ja testit (Git Bash):
 ```bash
 export JAVA_HOME=/c/Users/juhos/tools/jdk-17
 export PATH="$JAVA_HOME/bin:$PATH"
-./gradlew :parser:test        # parserin unit-testit, nopea
-./gradlew :app:assembleDebug  # APK -> app/build/outputs/apk/debug/
+./gradlew :parser:test          # parserin unit-testit, nopea
+./gradlew :app:assembleRelease  # allekirjoitettu APK jakoon
 ```
 
-**Huom:** projekti on Dropbox-kansiossa. `build/`- ja `.gradle/`-hakemistot tuottavat
-paljon synkkausliikennettä — kannattaa jättää ne Dropboxin valikoivan synkronoinnin
-ulkopuolelle.
+**Käännöshakemisto on projektin ulkopuolella.** Dropbox pitää käännöksen
+väliaikaistiedostoja auki ja Gradle kaatuu satunnaisesti virheeseen
+"Could not delete …" — kansion merkitseminen synkronoinnista ohitettavaksi ei
+riittänyt. Polku tulee `~/.gradle/gradle.properties`-tiedoston asetuksesta:
+
+```properties
+buildDirRoot=D:/build/Tyovuorolukija
+```
+
+Sen **pitää olla samalla asemalla kuin lähdekoodi** — KSP kaatuu virheeseen
+"this and base files have different roots" jos build-hakemisto on eri asemalla.
+Ilman asetusta käännös menee normaaliin `build/`-hakemistoon.
+
+Käännöksen tulos: `D:/build/Tyovuorolukija/app/outputs/apk/release/app-release.apk`.
+
+## Jakelu
+
+Sovellusta jaetaan APK-tiedostona, ei kaupan kautta. Jaettava kopio on
+`jakelu/Tyovuorolukija-<versio>.apk` (Dropboxissa, synkronoituu; `*.apk` on
+gitignoroitu).
+
+**Nosta `versionCode` ja `versionName` jokaisella jaettavalla käännöksellä**
+(`app/build.gradle.kts`). versionCode ratkaisee päivittyykö sovellus laitteella,
+versionName näkyy käyttäjälle aloitusnäkymässä ja Tietoa sovelluksesta -näkymässä.
+Ilman näkyvää versiota kukaan ei tiedä mikä käännös kenelläkin on.
+
+Allekirjoitus luetaan `keystore.properties`-tiedostosta (gitignoroitu). Avain on
+`C:\Users\juhos\keystore\tyovuorolukija.jks`. **Jos avain katoaa, päivityksiä ei voi
+enää julkaista** — vastaanottajien pitäisi poistaa sovellus ja menettää historiansa.
+Ota siitä varmuuskopio.
+
+Sama avain tarkoittaa, että uuden APK:n voi asentaa vanhan päälle: data säilyy
+eikä poistoa tarvita.
 
 ## Moduulit
 
@@ -210,10 +240,27 @@ ulkopuolelle.
   - `TitaniaShiftParser`, `ShiftCodes`, `ShiftTimes`
   - `tes/` — `TesRates`, `FinnishHolidays`, `SupplementHours`, `PayCalculator`
   - `stats/` — `ShiftRhythm` (kuormituksen tunnusluvut)
-  - Testit: 41 kpl, kaikki läpi.
+  - Testit: 46 kpl, kaikki läpi.
 - `:app` — Compose-käyttöliittymä, CameraX, ML Kit, Room, CalendarContract,
   `PaySettingsStore` (SharedPreferences), `HistoryRepository`, graafit
-  (`ui/charts/BarChart.kt`).
+  (`ui/charts/`).
+
+### Näkymät
+
+Tilakone on `UiState` (`ui/MainViewModel.kt`); kaikki navigointi kulkee sen kautta.
+Aloitusnäkymää lukuun ottamatta jokaisesta pääsee takaisin palkin nuolesta ja
+laitteen takaisin-eleellä (`BackHandler`).
+
+| Tila | Näkymä | Sisältö |
+|---|---|---|
+| `Home` | `HomeScreen` | Valikko + kumoa-painike + versio + infopainike palkissa |
+| `Scanning` | `CaptureScreen` | CameraX tai galleriavalinta |
+| `Review` | `ReviewScreen` | Vuorojen tarkistus, `PaySection` (vertailu + palkka) |
+| `History` | `HistoryScreen` | Kalenteriruudukko, palkkakertymä, graafit, taulukko |
+| `Settings` | `SettingsScreen` | Palkka, TES-prosentit, vähennykset |
+| `Tes` | `TesScreen` | Mihin laskenta perustuu, pykälineen |
+| `Cleanup` | `CleanupScreen` | Sovelluksen luomien tapahtumien poisto aikaväliltä |
+| `About` | `AboutScreen` | Versio, tietosuoja, luvat, rajoitukset |
 
 ### Room-skeema
 
@@ -222,6 +269,7 @@ ulkopuolelle.
 | 1 | `synced_shifts` — idempotenssi |
 | 2 | `sync_batches`, `sync_actions` — undo-journaali |
 | 3 | `scanned_periods` — jaksohistoria |
+| 4 | `scanned_days` — päiväkohtainen data kalenterinäkymään; `taxCents`, `contributionsCents` |
 
 Migraatiot on kirjoitettu käsin (`exportSchema = false`) ja **testattu oikealla
 laitteella**, ei vain kääntämällä: Room validoi skeeman kannan avautuessa, joten

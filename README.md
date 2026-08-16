@@ -53,8 +53,17 @@ Asennus puhelimeen USB-kaapelilla:
 
 | Moduuli | Sisältö |
 |---|---|
-| `:parser` | Puhdas JVM-Kotlin: `TitaniaShiftParser`, `ShiftCodes`, `ShiftTimes`. Ei Android-riippuvuuksia. |
+| `:parser` | Puhdas JVM-Kotlin: parseri, TES-laskenta, tunnusluvut. Ei Android-riippuvuuksia. 46 testiä. |
 | `:app` | Compose-käyttöliittymä, CameraX, ML Kit, Room, CalendarContract. |
+
+## Jakelu
+
+Jaettava, allekirjoitettu APK: `jakelu/Tyovuorolukija-<versio>.apk`. Sen voi asentaa
+vanhan version päälle — data säilyy, koska allekirjoitus on sama.
+
+Nosta `versionCode` ja `versionName` (`app/build.gradle.kts`) jokaisella jaettavalla
+käännöksellä. Versio näkyy sovelluksen aloitusnäkymässä ja infopainikkeen takaa,
+joten käyttäjä voi kertoa sen ilman arvailua.
 
 Tulosteen formaatin erikoisuudet, arkkitehtuuriperustelut ja avoimet kysymykset:
 ks. [CLAUDE.md](CLAUDE.md).
