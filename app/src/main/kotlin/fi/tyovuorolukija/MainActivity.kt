@@ -336,6 +336,15 @@ private fun Centered(modifier: Modifier, content: @Composable () -> Unit) {
  * Avaa laitteen kalenterisovelluksen annettuun hetkeen. Tapahtumat ovat usein
  * viikkojen päässä, jolloin ne eivät näy oletusnäkymässä lainkaan — tämä vie
  * suoraan oikeaan kohtaan sen sijaan että käyttäjä selaisi niitä käsin.
+ *
+ * **Näkymätyyppiä ei voi määrätä julkisella rajapinnalla.** `content://…/time/<millis>`
+ * kertoo vain *milloin*, ei *miten*; kalenterisovellus avaa sen näkymän jota
+ * käyttäjä on viimeksi käyttänyt. Alla oleva `VIEW`-lisäparametri on peräisin
+ * AOSP:n kalenterista ja osa sovelluksista tottelee sitä — se on siis toive,
+ * ei takuu. Jos sovellus ohittaa sen, käytös on täsmälleen sama kuin ilman.
+ *
+ * Käytännön kiertotie käyttäjälle: kalenterisovellus muistaa viimeksi käytetyn
+ * näkymän, joten kuukausinäkymän valitseminen kerran riittää.
  */
 private fun openCalendarAt(context: android.content.Context, millis: Long) {
     val uri = CalendarContract.CONTENT_URI.buildUpon()
@@ -343,6 +352,10 @@ private fun openCalendarAt(context: android.content.Context, millis: Long) {
         .appendPath(millis.toString())
         .build()
     runCatching {
-        context.startActivity(Intent(Intent.ACTION_VIEW).setData(uri))
+        context.startActivity(
+            Intent(Intent.ACTION_VIEW)
+                .setData(uri)
+                .putExtra("VIEW", "MONTH")
+        )
     }
 }
