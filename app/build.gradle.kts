@@ -30,10 +30,10 @@ android {
         // jokaisella jaettavalla käännöksellä.
         //
         // versionName on ihmiselle: se näkyy aloitusnäkymässä ja Tietoa
-        // sovelluksesta -näkymässä. Sen voi pitää samana useamman käännöksen ajan,
-        // jolloin sulkeissa näkyvä versionCode erottaa ne toisistaan.
+        // sovelluksesta -näkymässä. Pidä se samassa tahdissa versionCoden kanssa —
+        // eri numerot samassa paketissa ("0.2 (3)") näyttävät vain sekavalta.
         versionCode = 3
-        versionName = "0.2"
+        versionName = "0.3"
     }
 
     signingConfigs {
