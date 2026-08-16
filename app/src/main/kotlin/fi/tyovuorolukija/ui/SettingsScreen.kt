@@ -6,12 +6,14 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import fi.tyovuorolukija.data.PayForm
 
@@ -54,10 +56,49 @@ fun SettingsScreen(
                         { onFormChange(form.copy(taxPercent = it)) },
                         "Vero-%", Modifier.weight(1f))
                 }
+                // Sama valinta kuin vahvistusnäkymän palkkaosiossa. Kumpi luku
+                // kenttään on syötetty ei ole pääteltävissä itse luvusta, joten se
+                // kysytään molemmissa paikoissa eikä selitetä ohjetekstissä.
                 Text(
-                    "Kuukausipalkka = varsinainen palkka. Osa-aikaisella oma " +
-                        "osa-aikapalkkasi, ei kokoaikaisen palkkaa (23 § 3 mom). " +
-                        "Työaikaprosentti luetaan tulosteesta automaattisesti, jos " +
+                    "Mikä palkka kenttään on syötetty?",
+                    style = MaterialTheme.typography.labelLarge,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = !form.salaryIsFullTime,
+                        onClick = { onFormChange(form.copy(salaryIsFullTime = false)) },
+                        label = { Text("Oma palkkani") },
+                    )
+                    FilterChip(
+                        selected = form.salaryIsFullTime,
+                        onClick = { onFormChange(form.copy(salaryIsFullTime = true)) },
+                        label = { Text("Kokoaikaisen palkka") },
+                    )
+                }
+                Text(
+                    if (form.salaryIsFullTime) {
+                        "Kokoaikaisen (100 %) kuukauden bruttoperuspalkka. Sinun " +
+                            "palkkasi lasketaan siitä työaikaprosentilla."
+                    } else {
+                        "Sinulle maksettava kuukauden bruttoperuspalkka, ei " +
+                            "kokoaikaisen palkkaa (23 § 3 mom). Se lukee " +
+                            "palkkalaskelmassa."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                // Johdettu summa omalla rivillään: näin käyttäjä näkee heti mitä
+                // valinta tarkoittaa euroina eikä joudu luottamaan siihen.
+                if (form.salaryIsFullTime) {
+                    form.effectiveMonthlySalary?.let { own ->
+                        Text(
+                            "→ ${form.partTime} % syötetystä = ${own.toPlainString()} € kuussa",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                }
+                Text(
+                    "Työaikaprosentti luetaan tulosteesta automaattisesti, jos " +
                         "jätät kentän tyhjäksi.",
                     style = MaterialTheme.typography.bodySmall,
                 )

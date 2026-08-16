@@ -378,7 +378,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val list = runCatching { calendars.writableCalendars() }.getOrDefault(emptyList())
             updateCleanup {
-                it.copy(calendars = list, selectedCalendarId = list.firstOrNull()?.id)
+                it.copy(
+                    calendars = list,
+                    // Sama muistettu valinta kuin tallennusnäkymässä: käyttäjä on
+                    // valinnut kalenterin kerran, eikä sitä pidä kysyä uudelleen
+                    // toisessa näkymässä.
+                    selectedCalendarId = paySettings.lastCalendarId()?.takeIf { saved ->
+                        list.any { c -> c.id == saved }
+                    }
+                        ?: list.firstOrNull { c -> c.isPreferred }?.id
+                        ?: list.firstOrNull()?.id,
+                )
             }
         }
     }
@@ -387,8 +397,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         it.copy(from = from, to = to, searched = false, found = emptyList(), message = null)
     }
 
-    fun selectCleanupCalendar(id: Long) = updateCleanup {
-        it.copy(selectedCalendarId = id, searched = false, found = emptyList())
+    fun selectCleanupCalendar(id: Long) {
+        // Valinta on sama koko sovelluksessa, tehtiin se kummassa näkymässä tahansa.
+        paySettings.saveLastCalendarId(id)
+        updateCleanup { it.copy(selectedCalendarId = id, searched = false, found = emptyList()) }
     }
 
     fun searchCleanup() {
