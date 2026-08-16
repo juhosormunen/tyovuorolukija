@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -84,9 +85,36 @@ fun PaySection(
                 modifier = Modifier.weight(1f),
             )
         }
+        // Kumpi luku kenttaan syotetaan ei ole paateltavissa itse luvusta, ja ero on
+        // iso: 80 %:n tyoajalla kokoaikaisen palkka antaa 25 % liian suuren
+        // tuntipalkan. Siksi se kysytaan suoraan eika seliteta ohjetekstissa.
         Text(
-            "Kuukausipalkka = varsinainen palkka. Osa-aikaisella oma osa-aikapalkkasi, " +
-                "ei kokoaikaisen palkkaa (23 § 3 mom).",
+            "Mikä palkka kenttään on syötetty?",
+            style = MaterialTheme.typography.labelLarge,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = !form.salaryIsFullTime,
+                onClick = { onFormChange(form.copy(salaryIsFullTime = false)) },
+                label = { Text("Oma palkkani") },
+            )
+            FilterChip(
+                selected = form.salaryIsFullTime,
+                onClick = { onFormChange(form.copy(salaryIsFullTime = true)) },
+                label = { Text("Kokoaikaisen palkka") },
+            )
+        }
+        Text(
+            if (form.salaryIsFullTime) {
+                "Kokoaikaisen (100 %) kuukauden bruttoperuspalkka. Sinun palkkasi " +
+                    "lasketaan siitä työaikaprosentilla." +
+                    (form.effectiveMonthlySalary?.let {
+                        "\n→ ${form.partTime.pct()} × syötetystä = ${it.toPlainString()} €"
+                    } ?: "")
+            } else {
+                "Sinulle maksettava kuukauden bruttoperuspalkka, ei kokoaikaisen " +
+                    "palkkaa (23 § 3 mom). Se lukee palkkalaskelmassa."
+            },
             style = MaterialTheme.typography.bodySmall,
         )
 
@@ -293,7 +321,7 @@ private fun PayCard(pay: PayBreakdown) {
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            MoneyRow("Kuukausipalkka", pay.monthlySalary.toPlainString() + " €")
+            MoneyRow("Kuukauden peruspalkka", pay.monthlySalary.toPlainString() + " €")
             HorizontalDivider(Modifier.padding(vertical = 4.dp))
             pay.lines.forEach { line ->
                 MoneyRow(
@@ -301,9 +329,9 @@ private fun PayCard(pay: PayBreakdown) {
                     line.amount.toPlainString() + " €",
                 )
             }
-            MoneyRow("Lisät yhteensä", pay.supplementsTotal.toPlainString() + " €", bold = true)
+            MoneyRow("Lisät tältä jaksolta", pay.supplementsTotal.toPlainString() + " €", bold = true)
             HorizontalDivider(Modifier.padding(vertical = 4.dp))
-            MoneyRow("Bruttopalkka", pay.gross.toPlainString() + " €", bold = true)
+            MoneyRow("Brutto", pay.gross.toPlainString() + " €", bold = true)
             MoneyRow("− eläke- ja tv-maksut", pay.contributions.toPlainString() + " €")
             pay.tax?.let { MoneyRow("− ennakonpidätys", it.toPlainString() + " €") }
             pay.net?.let {
@@ -312,6 +340,13 @@ private fun PayCard(pay: PayBreakdown) {
             } ?: Text(
                 "Syötä veroprosentti nähdäksesi nettopalkan.",
                 style = MaterialTheme.typography.bodySmall,
+            )
+            Text(
+                "Huom: peruspalkka on koko kuukaudelta, lisät vain tältä jaksolta. " +
+                    "Jakso ei ole kuukausi, joten summa ei vastaa mitään yksittäistä " +
+                    "palkkapäivää.",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 4.dp),
             )
             Text(
                 "Suuntaa-antava. Oletus on että kaikki korvaukset maksetaan rahana. " +

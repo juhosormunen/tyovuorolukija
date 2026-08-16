@@ -22,6 +22,14 @@ data class PayForm(
     val divisor: String = "163",
     val pensionPercent: String = "7.15",
     val unemploymentPercent: String = "0.59",
+    /**
+     * Onko [monthlySalary] kokoaikaisen palkka vai käyttäjän oma osa-aikapalkka.
+     *
+     * Ero on iso eikä pääteltävissä luvusta: 80 %:n työajalla kokoaikaisen palkka
+     * antaa 25 % liian suuren tuntipalkan ja liian suuren bruttosumman. Siksi tämä
+     * kysytään suoraan sen sijaan että ohjeteksti yrittäisi selittää sen.
+     */
+    val salaryIsFullTime: Boolean = false,
 ) {
     private fun String.num(): Double? = trim().replace(',', '.').toDoubleOrNull()
 
@@ -42,6 +50,21 @@ data class PayForm(
             if (partTimePercent.isBlank()) return false
             val value = partTimePercent.num() ?: return true
             return value < 1.0 || value > 100.0
+        }
+
+    /**
+     * Kuukauden varsinainen palkka sellaisena kuin se maksetaan.
+     *
+     * Jos käyttäjä syötti kokoaikaisen palkan, siitä otetaan työaikaprosentin
+     * mukainen osuus. Tuntipalkka on kummassakin tapauksessa sama (23 § 3 mom).
+     */
+    val effectiveMonthlySalary: java.math.BigDecimal?
+        get() {
+            val entered = salary ?: return null
+            if (!salaryIsFullTime) return entered
+            return entered
+                .multiply(java.math.BigDecimal(partTime / 100.0))
+                .setScale(2, java.math.RoundingMode.HALF_UP)
         }
 
     val tax: Double? get() = taxPercent.num()?.takeIf { it >= 0 }
@@ -84,6 +107,7 @@ class PaySettingsStore(context: Context) {
             divisor = prefs.getString(KEY_DIVISOR, d.divisor)!!,
             pensionPercent = prefs.getString(KEY_PENSION, d.pensionPercent)!!,
             unemploymentPercent = prefs.getString(KEY_UNEMPLOYMENT, d.unemploymentPercent)!!,
+            salaryIsFullTime = prefs.getBoolean(KEY_SALARY_FULLTIME, d.salaryIsFullTime),
         )
     }
 
@@ -111,6 +135,7 @@ class PaySettingsStore(context: Context) {
             .putString(KEY_DIVISOR, form.divisor)
             .putString(KEY_PENSION, form.pensionPercent)
             .putString(KEY_UNEMPLOYMENT, form.unemploymentPercent)
+            .putBoolean(KEY_SALARY_FULLTIME, form.salaryIsFullTime)
             .apply()
     }
 
@@ -126,5 +151,6 @@ class PaySettingsStore(context: Context) {
         const val KEY_PENSION = "tyoelakemaksu"
         const val KEY_UNEMPLOYMENT = "tyottomyysvakuutus"
         const val KEY_CALENDAR = "viimeisin-kalenteri"
+        const val KEY_SALARY_FULLTIME = "palkka-on-kokoaikaisen"
     }
 }

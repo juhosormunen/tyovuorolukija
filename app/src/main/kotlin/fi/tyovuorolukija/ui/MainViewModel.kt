@@ -161,7 +161,7 @@ sealed interface UiState {
 
         val payBreakdown: PayBreakdown?
             get() {
-                val salary = payForm.salary ?: return null
+                val salary = payForm.effectiveMonthlySalary ?: return null
                 return PayCalculator.calculate(
                     validShifts,
                     employerSummary,
