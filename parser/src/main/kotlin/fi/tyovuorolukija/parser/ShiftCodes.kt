@@ -3,39 +3,43 @@ package fi.tyovuorolukija.parser
 /**
  * Titania-tulosteen vuorokoodit.
  *
- * HUOM: koodien merkitykset ovat yksikkökohtaisia. Varmat: A/a = aamu, I/i = ilta,
- * Y/y = yö, V = vapaa. Epävarmat (havaittu esimerkkitulosteesta, merkitys kysyttävä
- * työpaikalta): U (0700-1330), E (0700-2125).
+ * **Kirjainkoolla ei ole merkitystä.** Tuloste käyttää sekaisin isoja ja pieniä
+ * kirjaimia (`y` ja `Y`, `i` ja `I`), eikä eron merkitystä ole toistaiseksi
+ * tarpeen selvittää — koodit tulkitaan samoiksi eikä kirjainkoosta varoiteta.
+ * Alkuperäinen kirjoitusasu säilyy kalenteritapahtuman kuvauksessa.
  *
- * Isot ja pienet kirjaimet käsitellään toistaiseksi samana. Jos selviää, että ne
- * tarkoittavat eri asiaa (esim. eri osasto), poista [uppercase]-kutsu ja lisää
- * erilliset rivit.
+ * Koodien merkitykset on varmistettu käyttäjältä:
+ * - `A` aamu, `I` ilta, `Y` yö, `V` vapaa
+ * - `E` on pitkä vuoro (aamusta iltaan)
+ * - `U` ei ole vuorotyyppi lainkaan vaan sisäinen merkintä siitä, mitä vuoron
+ *   aikana tehdään. Käsin tehdyissä kalenterimerkinnöissä siitä on käytetty
+ *   nimeä "U-päivä", joten sama nimi täällä.
+ *
+ * Tuntemattomista koodeista varoitetaan edelleen ([isUnknown]) — tulosteissa on
+ * havaittu ainakin `R` ja `D`, joiden merkitystä ei tiedetä.
  */
 object ShiftCodes {
 
-    /** Koodit joiden merkitys on varmistettu. */
-    private val KNOWN = mapOf(
+    private val TITLES = mapOf(
         "A" to "Aamuvuoro",
         "I" to "Iltavuoro",
         "Y" to "Yövuoro",
         "V" to "Vapaa",
-    )
-
-    /** Koodit jotka on nähty tulosteessa mutta joiden merkitystä ei ole varmistettu. */
-    private val UNCONFIRMED = mapOf(
-        "U" to "Vuoro U",
-        "E" to "Vuoro E",
+        "E" to "Pitkä vuoro",
+        "U" to "U-päivä",
     )
 
     fun title(code: String?): String {
         if (code == null) return "Työvuoro"
-        val key = code.uppercase()
-        return KNOWN[key] ?: UNCONFIRMED[key] ?: "Vuoro $code"
+        return TITLES[code.uppercase()] ?: "Vuoro $code"
     }
 
-    /** True jos koodin merkitystä ei ole varmistettu -> kannattaa näyttää käyttäjälle. */
-    fun isUnconfirmed(code: String?): Boolean {
+    /**
+     * True jos koodia ei tunneta lainkaan. Tällainen vuoro merkitään
+     * käyttöliittymässä tarkistettavaksi, koska sen tulkinta on arvaus.
+     */
+    fun isUnknown(code: String?): Boolean {
         if (code == null) return false
-        return !KNOWN.containsKey(code.uppercase())
+        return !TITLES.containsKey(code.uppercase())
     }
 }

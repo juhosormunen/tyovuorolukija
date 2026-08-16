@@ -104,8 +104,8 @@ fun ReviewScreen(
                             Icon(Icons.Default.Warning, contentDescription = null)
                             Text(
                                 "${state.flaggedCount} vuoroa vaatii tarkistuksen " +
-                                    "(suunnitelma ja toteutunut poikkesivat, tai koodin " +
-                                    "merkitystä ei ole varmistettu).",
+                                    "(suunnitelma ja toteutunut poikkesivat, tai " +
+                                    "vuorokoodia ei tunnisteta).",
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         }

@@ -154,11 +154,12 @@ tunnit eivät täsmäisi.
 
 ## Vielä ratkaisematta
 
-- [ ] **Vuorokoodien merkitykset.** Varmat: `A`=aamu, `I`=ilta, `Y`=yö, `V`=vapaa.
-      Tuntemattomat: **`U`** (0700-1330) ja **`E`** (0700-2125, ~14 h). Onko pienellä
-      (`y`, `i`, `a`) ja isolla (`Y`, `I`) kirjoitetuilla eri merkitys — eri yksikkö
-      tai osasto? **Selvitettävä työpaikalta.** Koodit ovat `ShiftCodes.kt`:ssä;
-      varmistamattomat merkitään käyttöliittymässä tarkistettaviksi.
+- [x] **Vuorokoodien merkitykset — selvitetty.** `A` aamu, `I` ilta, `Y` yö,
+      `V` vapaa, `E` pitkä vuoro (aamusta iltaan). **`U` ei ole vuorotyyppi**
+      vaan sisäinen merkintä siitä mitä vuoron aikana tehdään; käsin tehdyissä
+      kalenterimerkinnöissä nimellä "U-päivä". Kirjainkoolla ei ole merkitystä
+      eikä siitä varoiteta. Tuntemattomista koodeista varoitetaan yhä —
+      tulosteissa on nähty ainakin `R` ja `D`, joiden merkitys on auki.
 - [ ] **Testiaineisto.** Kerää 5–10 valokuvaa eri jaksoista. Litteroi jokainen
       `Fixtures.kt`:iin ja kirjoita sille testi. Formaatti todennäköisesti vaihtelee
       enemmän kuin uskoisi. Kuvat kansioon `kuvat-testi/` (gitignoroitu).

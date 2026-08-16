@@ -211,9 +211,28 @@ class TitaniaShiftParserTest {
     fun `vuorokoodien otsikot`() {
         assertEquals("Yövuoro", ShiftCodes.title("y"))
         assertEquals("Aamuvuoro", ShiftCodes.title("A"))
-        assertEquals("Vuoro U", ShiftCodes.title("U"))
+        assertEquals("Pitkä vuoro", ShiftCodes.title("E"))
+        assertEquals("U-päivä", ShiftCodes.title("U"))
         assertEquals("Työvuoro", ShiftCodes.title(null))
-        assertTrue(ShiftCodes.isUnconfirmed("E"))
-        assertFalse(ShiftCodes.isUnconfirmed("I"))
+    }
+
+    @Test
+    fun `kirjainkoko ei vaikuta tulkintaan eika tuota varoitusta`() {
+        listOf("a" to "A", "i" to "I", "y" to "Y", "e" to "E", "u" to "U").forEach { (low, up) ->
+            assertEquals(ShiftCodes.title(up), ShiftCodes.title(low), "koodi $low vs $up")
+            assertFalse(ShiftCodes.isUnknown(low), "koodi $low ei saa varoittaa")
+            assertFalse(ShiftCodes.isUnknown(up), "koodi $up ei saa varoittaa")
+        }
+    }
+
+    @Test
+    fun `vain aidosti tuntematon koodi merkitaan tarkistettavaksi`() {
+        // U ja E ovat nyt tiedossa: U on sisäinen merkintä, E pitkä vuoro.
+        assertFalse(ShiftCodes.isUnknown("U"))
+        assertFalse(ShiftCodes.isUnknown("E"))
+        // R ja D on nähty tulosteissa, mutta merkitystä ei tiedetä.
+        assertTrue(ShiftCodes.isUnknown("R"))
+        assertTrue(ShiftCodes.isUnknown("D"))
+        assertFalse(ShiftCodes.isUnknown(null))
     }
 }

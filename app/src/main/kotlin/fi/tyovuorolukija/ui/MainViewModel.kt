@@ -79,7 +79,7 @@ data class ShiftRow(
             startText = shift.start.format(FORMAT),
             endText = shift.end.format(FORMAT),
             include = true,
-            flagged = shift.confidence == Confidence.REVIEW || ShiftCodes.isUnconfirmed(shift.code),
+            flagged = shift.confidence == Confidence.REVIEW || ShiftCodes.isUnknown(shift.code),
             source = shift.source,
         )
     }
