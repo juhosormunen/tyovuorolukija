@@ -228,9 +228,21 @@ versionName näkyy käyttäjälle aloitusnäkymässä ja Tietoa sovelluksesta -n
 Ilman näkyvää versiota kukaan ei tiedä mikä käännös kenelläkin on.
 
 Allekirjoitus luetaan `keystore.properties`-tiedostosta (gitignoroitu). Avain on
-`C:\Users\juhos\keystore\tyovuorolukija.jks`. **Jos avain katoaa, päivityksiä ei voi
-enää julkaista** — vastaanottajien pitäisi poistaa sovellus ja menettää historiansa.
-Ota siitä varmuuskopio.
+`keystore/tyovuorolukija.jks` projektin juuressa — siis Dropboxissa, jolloin se
+varmuuskopioituu itsestään. Kansio on gitignoroitu, joten avain ei päädy
+versionhallintaan. Polku ratkaistaan `rootProject.file()`:llä; pelkkä `file()`
+osoittaisi `app`-moduuliin.
+
+**Jos avain katoaa, päivityksiä ei voi enää julkaista.** Android hyväksyy
+päivityksen vain samalla avaimella allekirjoitettuna; uusi avain tarkoittaisi, että
+jokaisen vastaanottajan pitäisi poistaa sovellus ja menettää historiansa.
+
+Avain oli aluksi Dropboxin ulkopuolella ajatuksella "allekirjoitusavain ei kuulu
+pilveen". Se oli väärä painotus: salasana on joka tapauksessa
+`keystore.properties`-tiedostossa projektin juuressa eli Dropboxissa, joten
+erillään pitäminen ei suojannut miltään — se vain jätti avaimen ilman
+varmuuskopiota. Jos repo joskus viedään julkiseen versionhallintaan, tarkista että
+`keystore/` ja `keystore.properties` pysyvät gitignoressa.
 
 Sama avain tarkoittaa, että uuden APK:n voi asentaa vanhan päälle: data säilyy
 eikä poistoa tarvita.
