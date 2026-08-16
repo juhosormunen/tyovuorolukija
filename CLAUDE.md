@@ -257,10 +257,16 @@ laitteen takaisin-eleellä (`BackHandler`).
 | `Home` | `HomeScreen` | Valikko + kumoa-painike + versio + infopainike palkissa |
 | `Scanning` | `CaptureScreen` | CameraX tai galleriavalinta |
 | `Review` | `ReviewScreen` | Vuorojen tarkistus, `PaySection` (vertailu + palkka) |
-| `History` | `HistoryScreen` | Kalenteriruudukko, palkkakertymä, graafit, taulukko |
+| `History` | `HistoryScreen` | Kalenteriruudukko, palkkakertymä, graafit, taulukko, jaksojen poisto |
 | `Settings` | `SettingsScreen` | Palkka, TES-prosentit, vähennykset |
 | `Tes` | `TesScreen` | Mihin laskenta perustuu, pykälineen |
 | `Cleanup` | `CleanupScreen` | Sovelluksen luomien tapahtumien poisto aikaväliltä |
+
+Historian ja kalenterin poistot on **kytketty ristiin valintaruudulla** molempiin
+suuntiin, mutta ne ovat silti eri asioita: historia on tilastokirjanpitoa,
+kalenteri on kalenteri. Oletuksena poisto koskee vain sitä mistä se aloitettiin,
+ja vahvistusteksti muuttuu valinnan mukaan. Historian poisto ei koskaan koske
+`synced_shifts`-mäppäykseen, joten idempotenssi säilyy.
 | `About` | `AboutScreen` | Versio, tietosuoja, luvat, rajoitukset |
 
 ### Room-skeema
