@@ -39,7 +39,8 @@ android {
     signingConfigs {
         if (keystoreProperties.containsKey("storeFile")) {
             create("release") {
-                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                // rootProject.file: polku on projektin juuresta, ei app-moduulista.
+                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
                 storePassword = keystoreProperties.getProperty("storePassword")
                 keyAlias = keystoreProperties.getProperty("keyAlias")
                 keyPassword = keystoreProperties.getProperty("keyPassword")
