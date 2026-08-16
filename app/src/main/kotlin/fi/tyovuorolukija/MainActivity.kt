@@ -219,13 +219,36 @@ private fun AppRoot(viewModel: MainViewModel = viewModel()) {
             is UiState.Done -> Centered(content) {
                 val undone = s.undone
                 if (undone == null) {
-                    Text("Valmis", style = MaterialTheme.typography.headlineSmall)
+                    val onlyUpdates = s.summary.inserted == 0 && s.summary.deleted == 0 &&
+                        s.summary.updated > 0
                     Text(
-                        "Kalenteriin \"${s.calendarName}\": " +
-                            "${s.summary.inserted} lisätty, ${s.summary.updated} päivitetty, " +
-                            "${s.summary.deleted} poistettu.",
+                        if (onlyUpdates) "Kalenteri oli jo ajan tasalla"
+                        else "Valmis",
+                        style = MaterialTheme.typography.headlineSmall,
+                    )
+                    // Pelkkä "0 lisätty, 10 päivitetty" luetaan helposti
+                    // epäonnistumiseksi, koska kalenteriin ei ilmesty mitään uutta.
+                    // Sanotaan se siis suoraan.
+                    Text(
+                        if (onlyUpdates) {
+                            "Kaikki ${s.summary.updated} vuoroa olivat jo kalenterissa " +
+                                "\"${s.calendarName}\" ja pysyivät ennallaan. Uusia " +
+                                "tapahtumia ei tarvinnut luoda."
+                        } else {
+                            "Kalenteriin \"${s.calendarName}\": " +
+                                "${s.summary.inserted} lisätty, ${s.summary.updated} päivitetty, " +
+                                "${s.summary.deleted} poistettu."
+                        },
                         style = MaterialTheme.typography.bodyLarge,
                     )
+                    if (onlyUpdates) {
+                        Text(
+                            "Jos et löydä niitä kalenterista, tarkista että katsot oikeaa " +
+                                "ajankohtaa — ensimmäinen vuoro voi olla viikkojen päässä.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                     if (s.summary.failed.isNotEmpty()) {
                         Text(
                             "Epäonnistui:\n" + s.summary.failed.joinToString("\n"),

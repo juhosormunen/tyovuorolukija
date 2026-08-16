@@ -196,6 +196,15 @@ fun ReviewScreen(
                 }
             }
 
+            selectedCalendar?.takeIf { !it.syncEvents }?.let {
+                Text(
+                    "Huom: kalenteri \"${it.displayName}\" ei synkronoidu pilveen. " +
+                        "Vuorot tallentuvat vain tälle laitteelle.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+
             state.error?.let {
                 Text(it, color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall)

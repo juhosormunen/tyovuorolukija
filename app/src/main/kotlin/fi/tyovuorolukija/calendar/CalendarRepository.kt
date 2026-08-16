@@ -14,12 +14,16 @@ import fi.tyovuorolukija.parser.ShiftTimes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 data class CalendarInfo(
     val id: Long,
     val displayName: String,
     val accountName: String,
     val ownerAccount: String?,
+    /** False = kalenteri on vain laitteella eikä synkronoidu pilveen. */
+    val syncEvents: Boolean = true,
 )
 
 data class SyncSummary(
@@ -53,6 +57,10 @@ data class FoundEvent(
  */
 const val APP_MARKER = "Lisätty Työvuorolukijalla."
 
+/** Tallennushetken muoto tapahtuman kuvauksessa. */
+private val SAVED_AT_FORMAT: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("d.M.yyyy 'klo' HH:mm")
+
 /** Kalenterissa oleva tila ennen muutosta. */
 private data class EventSnapshot(
     val title: String?,
@@ -85,10 +93,16 @@ class CalendarRepository(private val context: Context) {
             CalendarContract.Calendars.CALENDAR_DISPLAY_NAME,
             CalendarContract.Calendars.ACCOUNT_NAME,
             CalendarContract.Calendars.OWNER_ACCOUNT,
+            CalendarContract.Calendars.SYNC_EVENTS,
         )
         // ACCESS_LEVEL >= CONTRIBUTOR riittää tapahtumien lisäämiseen.
-        val selection = "${CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL} >= ? " +
-            "AND ${CalendarContract.Calendars.SYNC_EVENTS} = 1"
+        //
+        // SYNC_EVENTS = 1 oli aiemmin lisäehtona, jotta tapahtumat varmasti
+        // päätyisivät pilveen. Se oli liian tiukka: laitteella voi olla täysin
+        // kirjoituskelpoinen paikallinen kalenteri jossa lippu on 0, ja silloin
+        // lista jäi tyhjäksi eikä tallennus onnistunut lainkaan. Nyt kalenteri
+        // näytetään ja synkronoimattomuudesta kerrotaan käyttöliittymässä.
+        val selection = "${CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL} >= ?"
         val args = arrayOf(CalendarContract.Calendars.CAL_ACCESS_CONTRIBUTOR.toString())
 
         val out = mutableListOf<CalendarInfo>()
@@ -101,10 +115,12 @@ class CalendarRepository(private val context: Context) {
                     displayName = c.getString(1) ?: "(nimetön)",
                     accountName = c.getString(2) ?: "",
                     ownerAccount = c.getString(3),
+                    syncEvents = c.getInt(4) == 1,
                 )
             }
         }
-        out
+        // Synkronoituvat ensin — ne ovat lähes aina se mitä käyttäjä haluaa.
+        out.sortedByDescending { it.syncEvents }
     }
 
     /** Viimeisin tallennuserä, jos sellainen on kumottavissa. */
@@ -460,8 +476,15 @@ class CalendarRepository(private val context: Context) {
         deleted
     }
 
+    /**
+     * Kalenteri ei tallenna tapahtuman luontiaikaa kenttään jota voisi lukea, joten
+     * se kirjoitetaan kuvaukseen. Näin tallennushetken näkee suoraan kalenterista
+     * eikä sitä tarvitse päätellä.
+     */
     private fun description(shift: Shift): String = buildString {
         append(APP_MARKER)
+        append(" ")
+        append(LocalDateTime.now(ShiftTimes.HELSINKI).format(SAVED_AT_FORMAT))
         shift.code?.let { append("\nKoodi: $it") }
         append("\nLähde: ${shift.source.trim()}")
     }
