@@ -101,6 +101,48 @@ class RealOcrTest {
     }
 
     @Test
+    fun `rikkinainen paivays korjataan viikonpaivan perusteella`() {
+        // "94.09 pe" = 04.09. Ilman korjausta koko rivi hylattiin ja U-vuoro katosi.
+        val r = TitaniaShiftParser(firstYear = 2026).parse(Fixtures.REAL_OCR_BROKEN_DATE)
+
+        val u = r.shifts.single { it.code == "U" }
+        assertEquals(dt("2026-09-04T07:00"), u.start)
+        assertEquals(dt("2026-09-04T13:30"), u.end)
+
+        assertEquals(10, r.shifts.size)
+        assertEquals(9, r.freeDays.size)
+        assertTrue(
+            r.warnings.any { it.contains("korjattu viikonpäivän") },
+            "korjauksesta pitää kertoa: ${r.warnings}",
+        )
+    }
+
+    @Test
+    fun `rikkinaisesta paivayksesta huolimatta tunnit tasmaavat`() {
+        val r = TitaniaShiftParser(firstYear = 2026).parse(Fixtures.REAL_OCR_BROKEN_DATE)
+        val cmp = PayCalculator.compare(r.shifts, r.employerSummary)
+
+        assertEquals(91 * 60L + 48, cmp.totalCalculatedMinutes)
+        assertTrue(cmp.allMatch, cmp.mismatches.toString())
+    }
+
+    @Test
+    fun `kelvollista paivaysta ei hylata vaikka viikonpaiva ei tasmaa`() {
+        // OCR voi lukea väärin kumman tahansa. Päiväyksen hylkääminen hävittäisi
+        // vuoron kokonaan, mikä on pahempi virhe kuin väärä viikonpäivä.
+        val lines = """
+                        suunnitelma  toteutunut  selite
+            28.08 ma    i 1400-2125  i 1400-2125
+            tunnit yhteensä
+        """.trimIndent().lines()
+
+        val r = TitaniaShiftParser(firstYear = 2026).parse(lines)
+        assertEquals(1, r.shifts.size, "vuoro ei saa kadota")
+        assertEquals(dt("2026-08-28T14:00"), r.shifts[0].start)
+        assertTrue(r.warnings.any { it.contains("eivät täsmää") }, r.warnings.toString())
+    }
+
+    @Test
     fun `epaonnistunut aikarivi tuottaa varoituksen`() {
         // Varmistus siitä, että jos korjaus ei riitä, vuoro ei katoa hiljaa.
         val rikki = """

@@ -1,5 +1,6 @@
 package fi.tyovuorolukija.parser
 
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -133,6 +134,17 @@ private val TIME_TOKEN_RE = Regex("""[0-9eEoO]{3,4}\s*[-–—]\s*[0-9eEoO]{3,4}
  */
 private val LOOKS_LIKE_TIME_RE = Regex("""\d{3}""")
 
+/** Tulosteen viikonpäivälyhenteet. Käytetään päiväyksen tarkistukseen ja korjaukseen. */
+private val WEEKDAYS: Map<String, DayOfWeek> = mapOf(
+    "ma" to DayOfWeek.MONDAY,
+    "ti" to DayOfWeek.TUESDAY,
+    "ke" to DayOfWeek.WEDNESDAY,
+    "to" to DayOfWeek.THURSDAY,
+    "pe" to DayOfWeek.FRIDAY,
+    "la" to DayOfWeek.SATURDAY,
+    "su" to DayOfWeek.SUNDAY,
+)
+
 /**
  * Korjaa OCR:n tyypilliset numerosekaannukset **vain kellonaikojen sisällä**.
  *
@@ -230,13 +242,43 @@ class TitaniaShiftParser(
             if (dateMatch != null) {
                 val day = dateMatch.groupValues[1].toInt()
                 val month = dateMatch.groupValues[2].toInt()
+                val weekday = WEEKDAYS[dateMatch.groupValues[3].lowercase()]
+
                 if (year == null) year = inferYear(day, month, referenceDate)
-                if (prevMonth != -1 && month < prevMonth) year = year!! + 1
-                prevMonth = month
-                currentDate = runCatching { LocalDate.of(year!!, month, day) }.getOrElse {
-                    warnings += "Virheellinen päiväys rivillä: $line"
-                    null
+                if (month in 1..12) {
+                    if (prevMonth != -1 && month < prevMonth) year = year!! + 1
+                    prevMonth = month
                 }
+
+                val parsed = runCatching { LocalDate.of(year!!, month, day) }.getOrNull()
+                val repaired = if (parsed != null && (weekday == null || parsed.dayOfWeek == weekday)) {
+                    null // päiväys kelpaa ja viikonpäivä täsmää — tavallinen tapaus
+                } else {
+                    repairDate(weekday, currentDate, month)
+                }
+
+                val resolved = when {
+                    repaired != null -> repaired.also {
+                        warnings += "Päiväys korjattu viikonpäivän perusteella: " +
+                            "\"${dateMatch.value.trim()}\" → $it"
+                    }
+                    // Luettu päiväys kelpaa, vaikka viikonpäivä ei täsmää: käytetään
+                    // sitä. OCR voi lukea väärin kumman tahansa, ja päiväyksen
+                    // hylkääminen hävittäisi vuoron kokonaan — se on pahempi virhe.
+                    parsed != null -> parsed.also {
+                        if (weekday != null && it.dayOfWeek != weekday) {
+                            warnings += "Päiväys ja viikonpäivä eivät täsmää, " +
+                                "tarkista: $line"
+                        }
+                    }
+                    else -> null
+                }
+
+                if (resolved == null) {
+                    warnings += "Päiväystä ei saatu luettua, rivi ohitettu: $line"
+                    continue
+                }
+                currentDate = resolved
                 rest = line.removeRange(dateMatch.range)
             }
 
@@ -425,6 +467,34 @@ class TitaniaShiftParser(
         }
         pending?.let { flush(it) }
         return out.sortedBy { it.start }
+    }
+
+    /**
+     * Päättelee päiväyksen viikonpäivästä, kun luettu päivämäärä ei kelpaa.
+     *
+     * Tuloste sisältää joka rivillä viikonpäivän, ja rivit ovat aikajärjestyksessä.
+     * Se on riittävä redundanssi: edellisestä päiväyksestä eteenpäin on täsmälleen
+     * yksi päivä viikon sisällä, jolla on haettu viikonpäivä.
+     *
+     * Havaittu oikeasta valokuvasta: `94.09 pe` (= 04.09). Ilman korjausta koko rivi
+     * hylättiin ja vuoro katosi hiljaa.
+     *
+     * Palauttaa null jos edellistä päiväystä ei ole (taulukon ensimmäinen rivi) tai
+     * viikonpäivää ei luettu — silloin arvaus olisi perusteeton.
+     */
+    private fun repairDate(
+        weekday: DayOfWeek?,
+        previous: LocalDate?,
+        printedMonth: Int,
+    ): LocalDate? {
+        if (weekday == null || previous == null) return null
+        val candidate = (1L..7L)
+            .map { previous.plusDays(it) }
+            .firstOrNull { it.dayOfWeek == weekday }
+            ?: return null
+        // Jos kuukausikin luettiin, sen pitää täsmätä — muuten korjaus on arvaus.
+        if (printedMonth in 1..12 && candidate.monthValue != printedMonth) return null
+        return candidate
     }
 
     private fun normalize(timeMatch: String) = timeMatch.replace(Regex("""\s+"""), "")
