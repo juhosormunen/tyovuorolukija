@@ -91,23 +91,36 @@ fun CaptureScreen(
     val previewView = remember { PreviewView(context) }
 
     var camera by remember { mutableStateOf<Camera?>(null) }
+    var provider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
     var torchOn by remember { mutableStateOf(false) }
     var hasTorch by remember { mutableStateOf(false) }
     var focusAt by remember { mutableStateOf<Offset?>(null) }
     var focusTick by remember { mutableStateOf(0) }
 
+    /** Sammuttaa valon ja pitää painikkeen tilan mukana. */
+    fun torchOff() {
+        torchOn = false
+        runCatching { camera?.cameraControl?.enableTorch(false) }
+    }
+
     LaunchedEffect(hasCameraPermission) {
         if (hasCameraPermission) {
-            bindCamera(context, previewView, lifecycleOwner, imageCapture, executor) { bound ->
+            bindCamera(context, previewView, lifecycleOwner, imageCapture, executor) { bound, prov ->
                 camera = bound
+                provider = prov
                 hasTorch = bound?.cameraInfo?.hasFlashUnit() == true
             }
         }
     }
 
-    // Valo pois kun näkymästä poistutaan — muuten se jäisi palamaan taskussa.
+    // Kamera on sidottu Activityn elinkaareen, ei tämän näkymän. Ilman
+    // eksplisiittistä irrotusta valo jäi palamaan koko sovelluksen ajaksi,
+    // vaikka näkymästä oli jo siirrytty pois.
     DisposableEffect(Unit) {
-        onDispose { runCatching { camera?.cameraControl?.enableTorch(false) } }
+        onDispose {
+            runCatching { camera?.cameraControl?.enableTorch(false) }
+            runCatching { provider?.unbindAll() }
+        }
     }
 
     // Tarkennusympyrä häivytetään pehmeästi, jotta napautus tuntuu vastaavan.
@@ -190,7 +203,14 @@ fun CaptureScreen(
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
-                    onClick = { takePhoto(context, imageCapture, executor, onImage) },
+                    onClick = {
+                        // Valo sammuu heti kuvan jälkeen, ei vasta näkymää
+                        // vaihdettaessa: kuva on otettu, joten valoa ei enää tarvita.
+                        takePhoto(context, imageCapture, executor) { uri ->
+                            torchOff()
+                            uri?.let(onImage)
+                        }
+                    },
                     enabled = hasCameraPermission,
                     modifier = Modifier.weight(1f),
                 ) {
@@ -200,8 +220,12 @@ fun CaptureScreen(
                 if (hasCameraPermission && hasTorch) {
                     FilledTonalButton(
                         onClick = {
-                            torchOn = !torchOn
-                            runCatching { camera?.cameraControl?.enableTorch(torchOn) }
+                            if (torchOn) {
+                                torchOff()
+                            } else {
+                                torchOn = true
+                                runCatching { camera?.cameraControl?.enableTorch(true) }
+                            }
                         },
                     ) {
                         Icon(
@@ -230,7 +254,7 @@ private fun bindCamera(
     lifecycleOwner: androidx.lifecycle.LifecycleOwner,
     imageCapture: ImageCapture,
     executor: Executor,
-    onBound: (Camera?) -> Unit,
+    onBound: (Camera?, ProcessCameraProvider?) -> Unit,
 ) {
     val future = ProcessCameraProvider.getInstance(context)
     future.addListener({
@@ -240,35 +264,41 @@ private fun bindCamera(
                 it.surfaceProvider = view.surfaceProvider
             }
             provider.unbindAll()
-            provider.bindToLifecycle(
+            val camera = provider.bindToLifecycle(
                 lifecycleOwner,
                 CameraSelector.DEFAULT_BACK_CAMERA,
                 preview,
                 imageCapture,
             )
+            camera to provider
         }.onFailure {
             Log.e(TAG, "Kameran sidonta epäonnistui", it)
-            onBound(null)
-        }.onSuccess(onBound)
+            onBound(null, null)
+        }.onSuccess { (camera, provider) -> onBound(camera, provider) }
     }, executor)
 }
 
+/**
+ * Ottaa kuvan. [onResult] saa kuvan sijainnin tai nullin virhetilanteessa —
+ * kutsutaan aina, jotta valo saadaan sammutettua myös epäonnistuneen kuvan jälkeen.
+ */
 private fun takePhoto(
     context: Context,
     imageCapture: ImageCapture,
     executor: Executor,
-    onImage: (Uri) -> Unit,
+    onResult: (Uri?) -> Unit,
 ) {
     val file = File(context.cacheDir, "skannaus_${System.currentTimeMillis()}.jpg")
     val options = ImageCapture.OutputFileOptions.Builder(file).build()
 
     imageCapture.takePicture(options, executor, object : ImageCapture.OnImageSavedCallback {
         override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-            onImage(output.savedUri ?: Uri.fromFile(file))
+            onResult(output.savedUri ?: Uri.fromFile(file))
         }
 
         override fun onError(exception: ImageCaptureException) {
             Log.e(TAG, "Kuvan tallennus epäonnistui", exception)
+            onResult(null)
         }
     })
 }
