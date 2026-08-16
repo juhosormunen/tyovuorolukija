@@ -1,7 +1,9 @@
 package fi.tyovuorolukija
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.provider.CalendarContract
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -16,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material.icons.filled.Event
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -241,13 +244,22 @@ private fun AppRoot(viewModel: MainViewModel = viewModel()) {
                         },
                         style = MaterialTheme.typography.bodyLarge,
                     )
-                    if (onlyUpdates) {
+                    // Yleisin hämmennys ei ole se että tallennus epäonnistuu, vaan
+                    // se ettei käyttäjä löydä tapahtumia: ne ovat viikkojen päässä
+                    // eivätkä tässä viikossa. Kerrotaan jakso ja avataan kalenteri
+                    // suoraan oikeaan kohtaan.
+                    s.rangeText?.let {
                         Text(
-                            "Jos et löydä niitä kalenterista, tarkista että katsot oikeaa " +
-                                "ajankohtaa — ensimmäinen vuoro voi olla viikkojen päässä.",
-                            style = MaterialTheme.typography.bodySmall,
+                            "Jakso $it",
+                            style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                    }
+                    s.firstShiftMillis?.let { millis ->
+                        OutlinedButton(onClick = { openCalendarAt(context, millis) }) {
+                            Icon(Icons.Default.Event, contentDescription = null)
+                            Text("  Näytä kalenterissa")
+                        }
                     }
                     if (s.summary.failed.isNotEmpty()) {
                         Text(
@@ -298,4 +310,19 @@ private fun Centered(modifier: Modifier, content: @Composable () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) { content() }
+}
+
+/**
+ * Avaa laitteen kalenterisovelluksen annettuun hetkeen. Tapahtumat ovat usein
+ * viikkojen päässä, jolloin ne eivät näy oletusnäkymässä lainkaan — tämä vie
+ * suoraan oikeaan kohtaan sen sijaan että käyttäjä selaisi niitä käsin.
+ */
+private fun openCalendarAt(context: android.content.Context, millis: Long) {
+    val uri = CalendarContract.CONTENT_URI.buildUpon()
+        .appendPath("time")
+        .appendPath(millis.toString())
+        .build()
+    runCatching {
+        context.startActivity(Intent(Intent.ACTION_VIEW).setData(uri))
+    }
 }

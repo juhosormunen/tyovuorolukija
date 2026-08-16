@@ -22,6 +22,7 @@ import fi.tyovuorolukija.parser.EmployerSummary
 import fi.tyovuorolukija.parser.FreeDay
 import fi.tyovuorolukija.parser.Shift
 import fi.tyovuorolukija.parser.ShiftCodes
+import fi.tyovuorolukija.parser.ShiftTimes
 import fi.tyovuorolukija.parser.TitaniaShiftParser
 import fi.tyovuorolukija.parser.tes.ComparisonResult
 import fi.tyovuorolukija.parser.tes.PayBreakdown
@@ -83,6 +84,8 @@ data class ShiftRow(
         )
     }
 }
+
+private val RANGE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("d.M.yyyy")
 
 /** Kumottavissa oleva tallennuskerta, näytetään aloitusnäkymässä. */
 data class UndoableBatch(val id: Long, val calendarName: String)
@@ -184,6 +187,10 @@ sealed interface UiState {
     data class Done(
         val summary: SyncSummary,
         val calendarName: String,
+        /** Jakson päivävälit tekstinä, esim. "24.8.2026 – 13.9.2026". */
+        val rangeText: String? = null,
+        /** Ensimmäisen vuoron alku — kalenterin avaamiseen oikeaan kohtaan. */
+        val firstShiftMillis: Long? = null,
         val undoing: Boolean = false,
         val undone: UndoSummary? = null,
     ) : UiState
@@ -478,7 +485,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             scannedAt = System.currentTimeMillis(),
                         )
                     }
-                    _state.value = UiState.Done(summary, calendarName)
+                    val first = review.validShifts.minByOrNull { it.start }
+                    _state.value = UiState.Done(
+                        summary = summary,
+                        calendarName = calendarName,
+                        rangeText = "${range.start.format(RANGE_FORMAT)} – " +
+                            range.endInclusive.format(RANGE_FORMAT),
+                        firstShiftMillis = first?.let { ShiftTimes.startMillis(it) },
+                    )
                 },
                 onFailure = { t ->
                     updateReview {
