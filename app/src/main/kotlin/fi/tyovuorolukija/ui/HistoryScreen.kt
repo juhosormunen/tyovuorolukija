@@ -1,17 +1,21 @@
 package fi.tyovuorolukija.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material3.AlertDialog
@@ -30,6 +34,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -43,6 +49,7 @@ import fi.tyovuorolukija.ui.charts.ChartLegend
 import fi.tyovuorolukija.ui.charts.PeriodCalendar
 import fi.tyovuorolukija.ui.charts.ShiftLegend
 import fi.tyovuorolukija.ui.charts.VizColors
+import fi.tyovuorolukija.ui.theme.ShiftColors
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -181,6 +188,8 @@ fun HistoryScreen(
         }
 
         item { StatRow(periods) }
+
+        item { ShiftTypeCard(fi.tyovuorolukija.data.ShiftTypeCounts.from(days)) }
 
         item {
             ChartBlock(
@@ -431,6 +440,63 @@ private fun SinglePeriodBreakdown(period: ScannedPeriod) {
                     ValueRow("Lyhin lepo vuorojen välissä", hours(it))
                 }
             }
+        }
+    }
+}
+
+/**
+ * Vuorotyyppien jakauma. Aamu, ilta ja yö erikseen; loput (E, U ja muut
+ * harvinaisemmat) yhtenä lukuna, jotta rivi pysyy luettavana.
+ */
+@Composable
+private fun ShiftTypeCard(counts: fi.tyovuorolukija.data.ShiftTypeCounts) {
+    if (counts.total == 0) return
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Vuorotyypit", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "Kaikki jaksot yhteensä, ${counts.total} vuoroa.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TypeTile("Aamu", counts.morning, ShiftColors.Morning, Modifier.weight(1f))
+            TypeTile("Ilta", counts.evening, ShiftColors.Evening, Modifier.weight(1f))
+            TypeTile("Yö", counts.night, ShiftColors.Night, Modifier.weight(1f))
+            TypeTile("Muu", counts.other, ShiftColors.Other, Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun TypeTile(label: String, count: Int, accent: Color, modifier: Modifier = Modifier) {
+    Card(
+        modifier,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        ),
+    ) {
+        Column(Modifier.padding(10.dp)) {
+            Row(
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Box(
+                    Modifier
+                        .size(9.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(accent)
+                )
+                Text(
+                    label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Text(
+                count.toString(),
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+            )
         }
     }
 }

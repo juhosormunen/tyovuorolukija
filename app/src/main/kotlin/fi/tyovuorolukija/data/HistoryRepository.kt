@@ -33,6 +33,34 @@ data class PayTotals(
         }
 }
 
+/**
+ * Vuorotyyppien lukumaarat. Harvinaisemmat koodit (E, U, R, D...) niputetaan
+ * yhteen: neljä lukua on luettava, kymmenen ei.
+ */
+data class ShiftTypeCounts(
+    val morning: Int = 0,
+    val evening: Int = 0,
+    val night: Int = 0,
+    val other: Int = 0,
+) {
+    val total: Int get() = morning + evening + night + other
+
+    companion object {
+        fun from(days: List<ScannedDay>): ShiftTypeCounts {
+            var m = 0; var e = 0; var n = 0; var o = 0
+            days.filterNot { it.isFree }.forEach { day ->
+                when (day.code?.uppercase()) {
+                    "A" -> m++
+                    "I" -> e++
+                    "Y" -> n++
+                    else -> o++
+                }
+            }
+            return ShiftTypeCounts(m, e, n, o)
+        }
+    }
+}
+
 /** Vuosikohtainen yhteenveto historiasta. */
 data class YearSummary(
     val year: Int,

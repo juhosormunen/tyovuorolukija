@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import fi.tyovuorolukija.calendar.CalendarInfo
 import fi.tyovuorolukija.calendar.CalendarRepository
+import fi.tyovuorolukija.calendar.CloudSyncState
 import fi.tyovuorolukija.calendar.FoundEvent
 import fi.tyovuorolukija.calendar.SyncSummary
 import fi.tyovuorolukija.calendar.UndoSummary
@@ -239,6 +240,12 @@ sealed interface UiState {
         val firstShiftMillis: Long? = null,
         /** True jos kohdekalenteri on laitteen sisäinen eikä näy Google Kalenterissa. */
         val calendarIsLocal: Boolean = false,
+        /** Kohdekalenteri ja jakso uudelleentarkistusta varten. */
+        val calendarId: Long? = null,
+        val range: ClosedRange<LocalDate>? = null,
+        /** Pilvisynkronoinnin tila. Null = ei vielä tarkistettu tai ei saatu selville. */
+        val cloudSync: CloudSyncState? = null,
+        val checkingSync: Boolean = false,
         val undoing: Boolean = false,
         val undone: UndoSummary? = null,
     ) : UiState
@@ -289,6 +296,35 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun openAbout() {
         _state.value = UiState.About
+    }
+
+    /**
+     * Tarkistaa onko tallennetut vuorot viety pilveen.
+     *
+     * Kalenteriin kirjoittaminen onnistuu paikallisesti aina; pilveen vieminen on
+     * Googlen synkronoinnin vastuulla ja voi olla jumissa kuukausia ilman että
+     * mikään kertoo siitä. Tämä on se kohta jossa se paljastuu.
+     */
+    fun checkCloudSync(initialDelayMillis: Long = 0) {
+        viewModelScope.launch {
+            val done = _state.value as? UiState.Done ?: return@launch
+            val calendarId = done.calendarId ?: return@launch
+            val range = done.range ?: return@launch
+            if (done.calendarIsLocal) return@launch // paikallinen ei synkronoidu koskaan
+
+            updateDone { it.copy(checkingSync = true) }
+            if (initialDelayMillis > 0) kotlinx.coroutines.delay(initialDelayMillis)
+
+            val state = runCatching {
+                calendars.cloudSyncState(calendarId, range.start, range.endInclusive)
+            }.getOrNull()
+
+            updateDone { it.copy(checkingSync = false, cloudSync = state) }
+        }
+    }
+
+    private fun updateDone(transform: (UiState.Done) -> UiState.Done) {
+        _state.update { if (it is UiState.Done) transform(it) else it }
     }
 
     /**
@@ -608,7 +644,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         firstShiftMillis = first?.let { ShiftTimes.startMillis(it) },
                         calendarIsLocal = review.calendars
                             .firstOrNull { it.id == calendarId }?.isLocal == true,
+                        calendarId = calendarId,
+                        range = range,
                     )
+                    // Kirjoitus onnistui, mutta se ei vielä tarkoita että vuorot ovat
+                    // pilvessä. Synkronointi vie tyypillisesti muutaman sekunnin —
+                    // ja jos se on jumissa, tämä on ainoa paikka jossa se näkyy.
+                    checkCloudSync(initialDelayMillis = 5_000)
                 },
                 onFailure = { t ->
                     updateReview {

@@ -67,6 +67,25 @@ data class UndoSummary(
     val failed: List<String>,
 )
 
+/**
+ * Onko sovelluksen luomat tapahtumat viety pilveen.
+ *
+ * Kalenteriin kirjoittaminen ja pilveen synkronointi ovat eri asioita: kirjoitus
+ * onnistuu paikallisesti aina, ja Googlen synkronointisovitin vie tapahtumat
+ * palvelimelle vasta myöhemmin — tai ei koskaan, jos synkronointi on jumissa.
+ * Ilman tätä tarkistusta sovellus ilmoittaa onnistumisesta silloinkin kun vuorot
+ * eivät päädy mihinkään muualle kuin siihen puhelimeen.
+ *
+ * [pending] lasketaan `dirty`- ja `_sync_id`-kentistä: odottava tapahtuma on
+ * merkitty likaiseksi eikä sillä ole vielä palvelimen antamaa tunnistetta.
+ */
+data class CloudSyncState(
+    val total: Int,
+    val pending: Int,
+) {
+    val allSynced: Boolean get() = total > 0 && pending == 0
+}
+
 /** Kalenterista löytynyt, tämän sovelluksen luoma tapahtuma. */
 data class FoundEvent(
     val id: Long,
@@ -514,6 +533,53 @@ class CalendarRepository(private val context: Context) {
             }
             total
         }
+
+    /**
+     * Tarkistaa, ovatko sovelluksen luomat tapahtumat jo synkronoituneet pilveen.
+     *
+     * Palauttaa null jos tilaa ei saada selville — kalenteripalvelu voi rajoittaa
+     * synkronointikenttien lukua. Silloin on parempi olla hiljaa kuin väittää jotain.
+     */
+    @SuppressLint("MissingPermission")
+    suspend fun cloudSyncState(
+        calendarId: Long,
+        from: LocalDate,
+        to: LocalDate,
+    ): CloudSyncState? = withContext(Dispatchers.IO) {
+        val zone = ShiftTimes.HELSINKI
+        val fromMillis = from.atStartOfDay(zone).toInstant().toEpochMilli()
+        val toMillis = to.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+
+        val projection = arrayOf(
+            CalendarContract.Events._ID,
+            CalendarContract.Events.DIRTY,
+            CalendarContract.Events._SYNC_ID,
+        )
+        val selection = "${CalendarContract.Events.CALENDAR_ID} = ? " +
+            "AND ${CalendarContract.Events.DTSTART} >= ? " +
+            "AND ${CalendarContract.Events.DTSTART} < ? " +
+            "AND ${CalendarContract.Events.DESCRIPTION} LIKE ? " +
+            "AND ${CalendarContract.Events.DELETED} = 0"
+        val args = arrayOf(
+            calendarId.toString(), fromMillis.toString(), toMillis.toString(), "%$APP_MARKER%",
+        )
+
+        runCatching {
+            var total = 0
+            var pending = 0
+            context.contentResolver.query(
+                CalendarContract.Events.CONTENT_URI, projection, selection, args, null,
+            )?.use { c ->
+                while (c.moveToNext()) {
+                    total++
+                    val dirty = if (c.isNull(1)) null else c.getInt(1)
+                    val syncId = c.getString(2)
+                    if (dirty == 1 || syncId.isNullOrBlank()) pending++
+                }
+            } ?: return@runCatching null
+            if (total == 0) null else CloudSyncState(total, pending)
+        }.getOrNull()
+    }
 
     /** Poistaa annetut tapahtumat ja niitä vastaavan paikallisen kirjanpidon. */
     @SuppressLint("MissingPermission")

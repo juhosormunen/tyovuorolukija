@@ -292,6 +292,42 @@ private fun AppRoot(viewModel: MainViewModel = viewModel()) {
                             color = MaterialTheme.colorScheme.error,
                         )
                     }
+                    // Kirjoitus kalenteriin ja synkronointi pilveen ovat eri asioita.
+                    // Jos jalkimmainen on jumissa, se nakyy vain taalla.
+                    when {
+                        s.checkingSync -> Text(
+                            "Tarkistetaan synkronointia…",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        s.cloudSync?.allSynced == true -> Text(
+                            "Synkronoitu Googleen — vuorot näkyvät myös muilla laitteilla.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        s.cloudSync != null && s.cloudSync.pending > 0 -> Column(
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Text(
+                                "${s.cloudSync.pending}/${s.cloudSync.total} vuoroa odottaa " +
+                                    "vielä lähetystä Googlelle. Vuorot ovat tallessa tässä " +
+                                    "puhelimessa, mutta eivät vielä muilla laitteilla.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                            Text(
+                                "Jos tilanne ei muutu minuuteissa, laitteen " +
+                                    "Google-synkronoinnissa voi olla vikaa.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            OutlinedButton(onClick = { viewModel.checkCloudSync() }) {
+                                Text("Tarkista uudelleen")
+                            }
+                        }
+                    }
+
                     s.firstShiftMillis?.let { millis ->
                         OutlinedButton(onClick = { openCalendarAt(context, millis) }) {
                             Icon(Icons.Default.Event, contentDescription = null)
