@@ -22,9 +22,34 @@ data class CalendarInfo(
     val displayName: String,
     val accountName: String,
     val ownerAccount: String?,
-    /** False = kalenteri on vain laitteella eikä synkronoidu pilveen. */
+    /** False = synkronointi pois päältä tälle kalenterille. */
     val syncEvents: Boolean = true,
-)
+    /** Tilin tyyppi, esim. `com.google` tai `LOCAL`. */
+    val accountType: String = "",
+) {
+    /**
+     * Laitteen sisäinen kalenteri, jolla ei ole tiliä takanaan.
+     *
+     * Näihin kirjoitetut tapahtumat eivät synkronoidu mihinkään, **eikä Google
+     * Kalenteri näytä niitä lainkaan** — tapahtumat ovat tallessa mutta
+     * näkymättömissä. Siksi tällaista ei koskaan valita oletukseksi.
+     */
+    val isLocal: Boolean
+        get() = accountType.equals(CalendarContract.ACCOUNT_TYPE_LOCAL, ignoreCase = true)
+
+    /** Turvallinen oletusvalinta: oikea tili ja synkronointi päällä. */
+    val isPreferred: Boolean get() = !isLocal && syncEvents
+
+    /** Valikossa näytettävä rivi. */
+    val label: String get() = buildString {
+        append(displayName)
+        when {
+            isLocal -> append(" — vain tällä laitteella")
+            !syncEvents -> append(" — synkronointi pois päältä")
+            accountName.isNotBlank() -> append(" ($accountName)")
+        }
+    }
+}
 
 data class SyncSummary(
     val batchId: Long,
@@ -94,6 +119,7 @@ class CalendarRepository(private val context: Context) {
             CalendarContract.Calendars.ACCOUNT_NAME,
             CalendarContract.Calendars.OWNER_ACCOUNT,
             CalendarContract.Calendars.SYNC_EVENTS,
+            CalendarContract.Calendars.ACCOUNT_TYPE,
         )
         // ACCESS_LEVEL >= CONTRIBUTOR riittää tapahtumien lisäämiseen.
         //
@@ -116,11 +142,18 @@ class CalendarRepository(private val context: Context) {
                     accountName = c.getString(2) ?: "",
                     ownerAccount = c.getString(3),
                     syncEvents = c.getInt(4) == 1,
+                    accountType = c.getString(5).orEmpty(),
                 )
             }
         }
-        // Synkronoituvat ensin — ne ovat lähes aina se mitä käyttäjä haluaa.
-        out.sortedByDescending { it.syncEvents }
+        // Oikean tilin synkronoituvat kalenterit ensin: ensimmäinen valitaan
+        // oletukseksi, eikä oletuksena saa koskaan olla laitteen sisäinen
+        // kalenteri, jota Google Kalenteri ei edes näytä.
+        out.sortedWith(
+            compareByDescending<CalendarInfo> { it.isPreferred }
+                .thenByDescending { it.syncEvents }
+                .thenBy { it.displayName },
+        )
     }
 
     /** Viimeisin tallennuserä, jos sellainen on kumottavissa. */

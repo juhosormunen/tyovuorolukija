@@ -193,6 +193,15 @@ sealed interface UiState {
             appendLine("yötyö: ${employerSummary.night}")
             appendLine("lauantaityö: ${employerSummary.saturday}")
             appendLine()
+            appendLine("-- Kalenterit --")
+            calendars.forEach { c ->
+                appendLine(
+                    "${if (c.id == selectedCalendarId) "* " else "  "}" +
+                        "id=${c.id}	${c.displayName}	tili=${c.accountName}" +
+                        "	tyyppi=${c.accountType}	sync=${c.syncEvents}	local=${c.isLocal}"
+                )
+            }
+            appendLine()
             appendLine("-- Tunnistetut vuorot --")
             rows.forEach { appendLine("${it.code}\t${it.startText}\t${it.endText}\t${it.source}") }
             appendLine()
@@ -228,6 +237,8 @@ sealed interface UiState {
         val rangeText: String? = null,
         /** Ensimmäisen vuoron alku — kalenterin avaamiseen oikeaan kohtaan. */
         val firstShiftMillis: Long? = null,
+        /** True jos kohdekalenteri on laitteen sisäinen eikä näy Google Kalenterissa. */
+        val calendarIsLocal: Boolean = false,
         val undoing: Boolean = false,
         val undone: UndoSummary? = null,
     ) : UiState
@@ -515,13 +526,25 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 if (current !is UiState.Review) current
                 else current.copy(
                     calendars = list,
-                    selectedCalendarId = current.selectedCalendarId ?: list.firstOrNull()?.id,
+                    // Järjestys: nykyinen valinta, sitten muistettu valinta, sitten
+                    // ensimmäinen oikean tilin synkronoituva kalenteri. Laitteen
+                    // sisäinen kalenteri kelpaa vasta viimeisenä oljenkortena —
+                    // Google Kalenteri ei näytä sen tapahtumia lainkaan.
+                    selectedCalendarId = current.selectedCalendarId
+                        ?: paySettings.lastCalendarId()?.takeIf { saved ->
+                            list.any { it.id == saved }
+                        }
+                        ?: list.firstOrNull { it.isPreferred }?.id
+                        ?: list.firstOrNull()?.id,
                 )
             }
         }
     }
 
-    fun selectCalendar(id: Long) = updateReview { it.copy(selectedCalendarId = id) }
+    fun selectCalendar(id: Long) {
+        paySettings.saveLastCalendarId(id)
+        updateReview { it.copy(selectedCalendarId = id) }
+    }
 
     fun updatePayForm(form: PayForm) {
         paySettings.save(form)
@@ -583,6 +606,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         rangeText = "${range.start.format(RANGE_FORMAT)} – " +
                             range.endInclusive.format(RANGE_FORMAT),
                         firstShiftMillis = first?.let { ShiftTimes.startMillis(it) },
+                        calendarIsLocal = review.calendars
+                            .firstOrNull { it.id == calendarId }?.isLocal == true,
                     )
                 },
                 onFailure = { t ->

@@ -155,7 +155,7 @@ fun CleanupScreen(
                 onExpandedChange = { calendarMenuOpen = it },
             ) {
                 OutlinedTextField(
-                    value = selected?.let { "${it.displayName} (${it.accountName})" }
+                    value = selected?.label
                         ?: "Valitse kalenteri",
                     onValueChange = {},
                     readOnly = true,
@@ -173,7 +173,7 @@ fun CleanupScreen(
                 ) {
                     state.calendars.forEach { cal ->
                         DropdownMenuItem(
-                            text = { Text("${cal.displayName} — ${cal.accountName}") },
+                            text = { Text(cal.label) },
                             onClick = { onSelectCalendar(cal.id); calendarMenuOpen = false },
                         )
                     }

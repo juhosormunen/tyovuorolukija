@@ -170,7 +170,7 @@ fun ReviewScreen(
                     onExpandedChange = { calendarMenuOpen = it },
                 ) {
                     OutlinedTextField(
-                        value = selectedCalendar?.let { "${it.displayName} (${it.accountName})" }
+                        value = selectedCalendar?.label
                             ?: "Valitse kalenteri",
                         onValueChange = {},
                         readOnly = true,
@@ -188,7 +188,7 @@ fun ReviewScreen(
                     ) {
                         state.calendars.forEach { cal ->
                             DropdownMenuItem(
-                                text = { Text("${cal.displayName} — ${cal.accountName}") },
+                                text = { Text(cal.label) },
                                 onClick = {
                                     onSelectCalendar(cal.id)
                                     calendarMenuOpen = false
@@ -199,13 +199,35 @@ fun ReviewScreen(
                 }
             }
 
-            selectedCalendar?.takeIf { !it.syncEvents }?.let {
-                Text(
-                    "Huom: kalenteri \"${it.displayName}\" ei synkronoidu pilveen. " +
-                        "Vuorot tallentuvat vain tälle laitteelle.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
+            // Laitteen sisäiseen kalenteriin kirjoitetut tapahtumat eivät näy
+            // Google Kalenterissa lainkaan. Se on niin harhaanjohtavaa — sovellus
+            // ilmoittaa onnistumisesta eikä kalenterissa näy mitään — että siitä
+            // varoitetaan korostetusti eikä pikkutekstillä.
+            selectedCalendar?.takeIf { !it.isPreferred }?.let { cal ->
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                    ),
+                ) {
+                    Row(
+                        Modifier.padding(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Icon(Icons.Default.Warning, contentDescription = null)
+                        Text(
+                            if (cal.isLocal) {
+                                "\"${cal.displayName}\" on laitteen sisäinen kalenteri. " +
+                                    "Google Kalenteri ei näytä sen tapahtumia lainkaan — " +
+                                    "vuorot tallentuvat, mutta jäävät näkymättömiin. " +
+                                    "Valitse Google-tilin kalenteri, jos sellainen on."
+                            } else {
+                                "Kalenterin \"${cal.displayName}\" synkronointi on pois " +
+                                    "päältä. Vuorot jäävät vain tälle laitteelle."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
             }
 
             state.error?.let {

@@ -101,8 +101,13 @@ private fun AppRoot(viewModel: MainViewModel = viewModel()) {
 
     // Kalenteriluvat kysytään vasta kun vuorot on tunnistettu — silloin käyttäjä
     // näkee mihin lupaa tarvitaan.
-    LaunchedEffect(state) {
-        if (state is UiState.Review && !hasCalendar) {
+    // Avaimena vain se mikä oikeasti ratkaisee. Koko tilaan avainnettuna efekti
+    // käynnistyi uudelleen jokaisesta muutoksesta — myös jokaisesta näppäimen
+    // painalluksesta tekstikentässä — ja luvan ollessa evättynä lupapyyntö olisi
+    // toistunut loputtomasti.
+    val inReview = state is UiState.Review
+    LaunchedEffect(inReview, hasCalendar) {
+        if (inReview && !hasCalendar) {
             calendarLauncher.launch(CALENDAR_PERMISSIONS)
         }
     }
@@ -275,6 +280,16 @@ private fun AppRoot(viewModel: MainViewModel = viewModel()) {
                             "Jakso $it",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    if (s.calendarIsLocal) {
+                        Text(
+                            "Huom: \"${s.calendarName}\" on laitteen sisäinen kalenteri. " +
+                                "Google Kalenteri ei näytä sen tapahtumia. Vuorot ovat " +
+                                "tallessa, mutta löytyvät vain laitteen omasta " +
+                                "kalenterisovelluksesta.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
                         )
                     }
                     s.firstShiftMillis?.let { millis ->

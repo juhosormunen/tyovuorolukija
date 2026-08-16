@@ -87,6 +87,18 @@ class PaySettingsStore(context: Context) {
         )
     }
 
+    /**
+     * Viimeksi valittu kalenteri. Ilman tätä jokainen skannaus palasi oletukseen,
+     * ja jos oletus oli laitteen sisäinen kalenteri, vuorot päätyivät sinne
+     * vaikka käyttäjä oli kerran valinnut oikean.
+     */
+    fun lastCalendarId(): Long? =
+        prefs.getLong(KEY_CALENDAR, -1L).takeIf { it >= 0 }
+
+    fun saveLastCalendarId(id: Long) {
+        prefs.edit().putLong(KEY_CALENDAR, id).apply()
+    }
+
     fun save(form: PayForm) {
         prefs.edit()
             .putString(KEY_SALARY, form.monthlySalary)
@@ -113,5 +125,6 @@ class PaySettingsStore(context: Context) {
         const val KEY_DIVISOR = "jakaja"
         const val KEY_PENSION = "tyoelakemaksu"
         const val KEY_UNEMPLOYMENT = "tyottomyysvakuutus"
+        const val KEY_CALENDAR = "viimeisin-kalenteri"
     }
 }
