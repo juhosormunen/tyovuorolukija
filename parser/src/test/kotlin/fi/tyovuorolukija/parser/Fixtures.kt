@@ -54,6 +54,74 @@ object Fixtures {
         lauantaityö        15:00
     """.trimIndent().lines()
 
+    /**
+     * Oikea ML Kit -tuloste toisen käyttäjän puhelimesta 16.8.2026, samasta
+     * jaksosta kuin [EXAMPLE_PRINTOUT]. Kopioitu sovelluksen omasta
+     * "Kopioi tunnistustiedot" -toiminnosta, ei siistitty.
+     *
+     * Sisältää oikeat OCR-virheet, joiden takia kaksi vuoroa katosi kokonaan:
+     * - nolla luettuna e:nä (`e000-e712`, `U e700-1330`)
+     * - numeroita pudonnut (`070-1450`, `210-2400`, `0000-713`)
+     * - käsinkirjoitettu sarake vuotanut mukaan (`8-l6`, `5- (6`, `8- le`)
+     * - roskaa rivin alussa (`!>>>>u`)
+     *
+     * Tämä on arvokkain testifixture: keksityllä syötteellä näitä ei olisi keksinyt.
+     */
+    val REAL_OCR: List<String> = """
+        pirha-titania.monetra.fi/itania/faces/s s/summarylistprintpage.
+        13.8.2026 klo 22. 17 xhtml?txtSummaryListToPrint=000000000000000000
+        TYÖVUOROTAULUKKO 13.08.2026 12:47:56
+        SAIRAALA 12/26 taulukon rivi 31
+        T0000 OSASTO 1, VUODEOSASTO
+        24.08. 26-13 .09. 26 toteutunut lista
+        e1234-000A MEIKÄLÄINEN MAIJA
+        00000 SAIRAANHOITAJA
+        työaikamuoto : Jaksotyö, vuorotyöluonteinen, kuukausipalkkainen, SOTE
+        työaikaprosentti: 80,00
+        Suunnitelma toteutunut selite Hoito
+        8-l6
+        24.08 ma y 2100-2400 y 2100-2400
+        25.08 ti e000-e712 e000-712 8-17
+        y 210e-2400 y 2100-2400
+        26.08 ke 0000-0710 0000-0710 8-o
+        27.08 to vapaapäivä V
+        28.08 pe i 1400-2125 i 1400-2125 5- (6
+        29.08 la i 1400- 2125 i 1400-2125
+        30.08 SU a 070-1450 a 0700-1450
+        31.08 ma vapaapäivä
+        01.09 ti vapaapäivä
+        02.09 ke !>>>>u V vapaapäivä
+        03.09 to V vapaapäivä 8- le
+        04.09 pe U 700-1330 U e700-1330
+        8-15
+        05.09 la E 0700-2125 E 070-2125
+        06.09 SU I 1400-2125 I 1400-2125
+        07.09 ma Y 210-2400 Y 2100-2400
+        08.09 ti 0000-0713 0000-0713
+        Y 2100-2400 Y 2100-2400
+        09.09 ke 0000-713 0000-0713
+        10.09 to V vapaapäivä
+        11.09 pe vapaapäivä
+        12.09 la vapaapäivä
+        13.09 SU V vapaapäivä
+        tunnit yhteensä 91:48 91:48
+        jakson tunnit 91:48 91:48
+        suunnitteluraja 91:48
+        lisätyöraja 91:48 91:48
+        ylityöraja 114:45 114:45
+        tämän siirto siirto
+        jakson edell. seuraav. aika-
+        tunnit jaksolta jaksolle hyvitys maksuun
+        tunnit yhteensä 91:48 91:48
+        sunnuntaityö 22:05 22:05
+        iltatyö (18-22) 17:40 17:40
+        yötyö (22-07) 36:00 36:00
+        lauantaityö 15:00 15:00
+        kertymä
+        Vapaa-aikakorvaukset
+        muu korvausvapaa 27:44
+    """.trimIndent().lines()
+
     /** Kesäajan päättyminen su 25.10.2026 klo 04:00 -> 03:00. */
     val DST_AUTUMN: List<String> = """
                     suunnitelma  toteutunut  selite

@@ -121,6 +121,38 @@ private val TABLE_END_RE =
         RegexOption.IGNORE_CASE)
 private val FREE_RE = Regex("""(^|\s)[Vv](\s|$)|vapaap""")
 
+/**
+ * Kellonaikaa muistuttava tunnus, jossa voi olla OCR:n sekoittamia merkkejä.
+ * Käytetään vain korjaukseen — varsinainen tunnistus tekee [TIME_RE].
+ */
+private val TIME_TOKEN_RE = Regex("""[0-9eEoO]{3,4}\s*[-–—]\s*[0-9eEoO]{3,4}""")
+
+/**
+ * Kolminumeroinen luku rivillä, jolta ei saatu kellonaikaa. Käsinkirjoitettu
+ * sarake ("8-16") ei täytä tätä, mutta epäonnistunut aikarivi ("700-1330") täyttää.
+ */
+private val LOOKS_LIKE_TIME_RE = Regex("""\d{3}""")
+
+/**
+ * Korjaa OCR:n tyypilliset numerosekaannukset **vain kellonaikojen sisällä**.
+ *
+ * Havaittu oikeasta valokuvasta: `e000-e712` (= 0000-0712) ja `U e700-1330`
+ * (= U 0700-1330). Nolla luetaan e:nä tai o:na. Näiden takia kokonaisia vuoroja
+ * jäi tunnistumatta — 13 h 42 min yhdestä jaksosta.
+ *
+ * Korjaus rajataan tunnuksiin, joissa on viiva ja vähintään kaksi oikeaa numeroa.
+ * Koko rivin korjaaminen olisi vaarallista: `E` ja `I` ovat oikeita vuorokoodeja,
+ * eikä niitä saa muuttaa nolliksi tai ykkösiksi.
+ *
+ * Alkuperäinen rivi säilyy `source`-kentässä, joten käyttäjä näkee mitä kuvassa luki.
+ */
+internal fun repairOcrDigits(line: String): String =
+    TIME_TOKEN_RE.replace(line) { match ->
+        val token = match.value
+        if (token.count { it.isDigit() } < 2) token
+        else token.map { if (it in "eEoO") '0' else it }.joinToString("")
+    }
+
 /** Yhteenvedon tuntimäärä, esim. "91:48" tai "114:45". */
 private val SUMMARY_TIME_RE = Regex("""(\d{1,3})[.:](\d{2})""")
 
@@ -213,13 +245,24 @@ class TitaniaShiftParser(
                 null
             } ?: continue
 
-            val times = TIME_RE.findAll(rest).toList()
+            // Tunnistus tehdään korjatusta tekstistä, mutta käyttäjälle näytetään
+            // alkuperäinen rivi.
+            val repaired = repairOcrDigits(rest)
+            val times = TIME_RE.findAll(repaired).toList()
 
             if (times.isEmpty()) {
                 if (FREE_RE.containsMatchIn(rest)) {
                     if (freeDays.none { it.date == date }) freeDays += FreeDay(date, line)
                 } else {
                     ignored += line
+                    // Rivi, jossa on kolminumeroinen luku mutta ei tunnistettua
+                    // kellonaikaa, on lähes varmasti epäonnistunut aikarivi eikä
+                    // käsinkirjoitetun sarakkeen roskaa. Se on syytä sanoa ääneen:
+                    // hiljaa kadonnut vuoro on pahin mahdollinen virhe.
+                    if (LOOKS_LIKE_TIME_RE.containsMatchIn(rest)) {
+                        warnings += "Riviltä ei saatu luettua kellonaikaa, " +
+                            "vuoro voi puuttua: $line"
+                    }
                 }
                 continue
             }
