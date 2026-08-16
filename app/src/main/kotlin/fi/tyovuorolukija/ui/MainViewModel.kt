@@ -101,6 +101,7 @@ sealed interface UiState {
 
     data class Settings(val payForm: PayForm) : UiState
     data class Tes(val payForm: PayForm) : UiState
+    data object About : UiState
 
     data class Cleanup(
         val from: String = "",
@@ -237,6 +238,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun openTes() {
         _state.value = UiState.Tes(paySettings.load())
+    }
+
+    fun openAbout() {
+        _state.value = UiState.About
     }
 
     fun openCleanup() {

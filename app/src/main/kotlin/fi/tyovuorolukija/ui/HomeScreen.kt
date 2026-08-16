@@ -111,6 +111,13 @@ fun HomeScreen(
             onClick = onCleanup,
         )
 
+        Text(
+            "Versio ${fi.tyovuorolukija.BuildConfig.VERSION_NAME}",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+
         // Virheen huomaa usein vasta kalenterista, joten kumous on tarjolla
         // vielä senkin jälkeen kun tallennusnäkymästä on poistuttu.
         undoable?.let {

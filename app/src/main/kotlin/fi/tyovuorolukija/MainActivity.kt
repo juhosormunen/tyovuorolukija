@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -43,6 +44,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import fi.tyovuorolukija.ui.AboutScreen
 import fi.tyovuorolukija.ui.CaptureScreen
 import fi.tyovuorolukija.ui.CleanupScreen
 import fi.tyovuorolukija.ui.HomeScreen
@@ -111,6 +113,7 @@ private fun AppRoot(viewModel: MainViewModel = viewModel()) {
         is UiState.Scanning -> "Skannaa"
         is UiState.Settings -> "Asetukset"
         is UiState.Tes -> "Työehtosopimus"
+        is UiState.About -> "Tietoa sovelluksesta"
         is UiState.Cleanup -> "Siivoa kalenteri"
         is UiState.History -> "Historia ja tilastot"
         is UiState.Review -> "Tarkista vuorot"
@@ -135,6 +138,18 @@ private fun AppRoot(viewModel: MainViewModel = viewModel()) {
                             Icon(
                                 Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "Takaisin aloitusnäkymään",
+                            )
+                        }
+                    }
+                },
+                actions = {
+                    // Pieni infopainike vain aloitusnäkymässä: muualla palkin
+                    // oikea reuna on parempi jättää tyhjäksi.
+                    if (atHome) {
+                        IconButton(onClick = viewModel::openAbout) {
+                            Icon(
+                                Icons.Outlined.Info,
+                                contentDescription = "Tietoa sovelluksesta",
                             )
                         }
                     }
@@ -185,6 +200,11 @@ private fun AppRoot(viewModel: MainViewModel = viewModel()) {
                 onSelectCalendar = viewModel::selectCleanupCalendar,
                 onSearch = viewModel::searchCleanup,
                 onDelete = viewModel::deleteCleanup,
+                onBack = viewModel::reset,
+                modifier = content,
+            )
+
+            is UiState.About -> AboutScreen(
                 onBack = viewModel::reset,
                 modifier = content,
             )

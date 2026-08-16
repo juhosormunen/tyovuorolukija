@@ -23,8 +23,11 @@ android {
         applicationId = "fi.tyovuorolukija"
         minSdk = 26          // java.time ilman desugarointia
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1"
+        // Nosta molempia jokaisella jaettavalla käännöksellä. versionCode ratkaisee
+        // päivittyykö sovellus laitteella; versionName on se mitä käyttäjä näkee
+        // Tietoa sovelluksesta -näkymässä ja voi kertoa eteenpäin.
+        versionCode = 2
+        versionName = "0.2"
     }
 
     signingConfigs {
@@ -61,6 +64,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true // versionName Tietoa sovelluksesta -näkymään
     }
 
     packaging {
