@@ -47,6 +47,10 @@ import fi.tyovuorolukija.parser.tes.toHoursMinutes
 import fi.tyovuorolukija.ui.charts.Bar
 import fi.tyovuorolukija.ui.charts.BarChart
 import fi.tyovuorolukija.ui.charts.ChartLegend
+import fi.tyovuorolukija.data.AbsenceDay
+import fi.tyovuorolukija.data.DayType
+import fi.tyovuorolukija.parser.ShiftCodes
+import androidx.compose.material3.FilterChip
 import fi.tyovuorolukija.ui.charts.PeriodCalendar
 import fi.tyovuorolukija.ui.charts.ShiftLegend
 import fi.tyovuorolukija.ui.charts.VizColors
@@ -55,6 +59,12 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 private val SHORT_DATE = DateTimeFormatter.ofPattern("d.M.")
+
+/** Valintaikkunan otsikko: viikonpäivä auttaa tunnistamaan oikean päivän. */
+private val DAY_DIALOG_FORMAT: java.time.format.DateTimeFormatter =
+    java.time.format.DateTimeFormatter.ofPattern(
+        "EEEE d.M.yyyy", java.util.Locale.forLanguageTag("fi"),
+    )
 
 /**
  * Historianäkymä. Rakenne: ensin tunnusluvut, sitten graafit, lopuksi taulukko.
@@ -73,7 +83,71 @@ fun HistoryScreen(
     onClearAll: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    absences: List<AbsenceDay> = emptyList(),
+    /** Ruudukossa napautettu päivä; null kun valintaikkuna on kiinni. */
+    editingDay: LocalDate? = null,
+    busy: Boolean = false,
+    message: String? = null,
+    onDayClick: (LocalDate?) -> Unit = {},
+    onSetDayType: (LocalDate, DayType) -> Unit = { _, _ -> },
+    onDismissMessage: () -> Unit = {},
 ) {
+    val absenceByDate = absences.associate { it.date to it.dayType }
+
+    // Päivän merkintä sairauslomaksi tai lomaksi. Tämä on poissaolojen pääreitti:
+    // sairauslomaa ei tiedä etukäteen, joten se merkitään jo tallennettuun jaksoon.
+    editingDay?.let { date ->
+        val current = absenceByDate[date.toString()] ?: DayType.WORK
+        val day = days.firstOrNull { it.date == date.toString() }
+        AlertDialog(
+            onDismissRequest = { onDayClick(null) },
+            title = { Text(date.format(DAY_DIALOG_FORMAT)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        day?.let { d ->
+                            if (d.isFree) "Vapaapäivä."
+                            else "Vuoro: ${ShiftCodes.title(d.code)}"
+                        } ?: "Ei vuoroa tälle päivälle.",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Text(
+                        "Poissaolopäivästä ei lasketa ilta-, yö-, lauantai- eikä " +
+                            "sunnuntaikorvausta. Peruspalkka jatkuu.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        DayType.entries.forEach { type ->
+                            FilterChip(
+                                selected = current == type,
+                                onClick = { onSetDayType(date, type) },
+                                label = {
+                                    Text(
+                                        type.label,
+                                        style = MaterialTheme.typography.labelMedium,
+                                    )
+                                },
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { onDayClick(null) }) { Text("Sulje") }
+            },
+        )
+    }
+
+    message?.let { text ->
+        AlertDialog(
+            onDismissRequest = onDismissMessage,
+            title = { Text("Poissaolomerkintä") },
+            text = { Text(text) },
+            confirmButton = { TextButton(onClick = onDismissMessage) { Text("Selvä") } },
+        )
+    }
+
     var tableOpen by remember { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<ScannedPeriod?>(null) }
     var alsoDeleteCalendar by remember { mutableStateOf(false) }
@@ -190,7 +264,9 @@ fun HistoryScreen(
 
         item { StatRow(periods) }
 
-        item { ShiftTypeCard(fi.tyovuorolukija.data.ShiftTypeCounts.from(days)) }
+        item {
+            ShiftTypeCard(fi.tyovuorolukija.data.ShiftTypeCounts.from(days, absences))
+        }
 
         item {
             ChartBlock(
@@ -200,6 +276,13 @@ fun HistoryScreen(
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     ShiftLegend()
+                    Text(
+                        "Napauta päivää merkitäksesi sen sairauslomaksi tai lomaksi. " +
+                            "Pidemmät jaksot ja päivät joille ei ole vuoroa merkitään " +
+                            "aloitusnäkymän Poissaolot-painikkeesta.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                     periods.forEach { period ->
                         val periodDays = days.filter { it.periodKey == period.key }
                         if (periodDays.isEmpty()) return@forEach
@@ -209,6 +292,8 @@ fun HistoryScreen(
                                 days = periodDays,
                                 rangeStart = LocalDate.parse(period.rangeStart),
                                 rangeEnd = LocalDate.parse(period.rangeEnd),
+                                absences = absenceByDate,
+                                onDayClick = if (busy) null else { d -> onDayClick(d) },
                             )
                         }
                     }

@@ -10,6 +10,8 @@ import fi.tyovuorolukija.calendar.CloudSyncState
 import fi.tyovuorolukija.calendar.FoundEvent
 import fi.tyovuorolukija.calendar.SyncSummary
 import fi.tyovuorolukija.calendar.UndoSummary
+import fi.tyovuorolukija.data.AbsenceDay
+import fi.tyovuorolukija.data.DayType
 import fi.tyovuorolukija.data.HistoryRepository
 import fi.tyovuorolukija.data.PayForm
 import fi.tyovuorolukija.data.PaySettingsStore
@@ -40,21 +42,6 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
-/**
- * Päivän luonne. Poissaolopäivä oli suunniteltu vuoroksi, mutta sitä ei tehty.
- *
- * Palkan kannalta ero on olennainen: poissaolon ajalta maksetaan varsinainen palkka,
- * eikä varsinainen palkka sisällä työaikakorvauksia (KVTES palkkausluku 5 §). Niinpä
- * poissaolopäivän tunneista ei kerry ilta-, yö-, lauantai- eikä sunnuntaikorvausta.
- */
-enum class DayType(val label: String, val calendarTitle: String?) {
-    WORK("Työvuoro", null),
-    SICK("Sairaus", "Sairausloma"),
-    VACATION("Loma", "Vuosiloma");
-
-    val countsAsWork: Boolean get() = this == WORK
-}
-
 /** Muokattava rivi vahvistusnäkymässä. Ajat ovat tekstiä, jotta käyttäjä voi korjata OCR:n. */
 data class ShiftRow(
     val key: Int,
@@ -64,7 +51,6 @@ data class ShiftRow(
     val include: Boolean,
     val flagged: Boolean,
     val source: String,
-    val dayType: DayType = DayType.WORK,
 ) {
     val startError: Boolean get() = parseOrNull(startText) == null
     val endError: Boolean get() = parseOrNull(endText) == null
@@ -81,7 +67,6 @@ data class ShiftRow(
             end = end,
             confidence = if (flagged) Confidence.REVIEW else Confidence.OK,
             source = source,
-            titleOverride = dayType.calendarTitle,
         )
     }
 
@@ -150,7 +135,45 @@ sealed interface UiState {
         val years: List<YearSummary>,
         val days: List<ScannedDay>,
         val totals: PayTotals,
-    ) : UiState
+        val absences: List<AbsenceDay> = emptyList(),
+        /** Päivä jota käyttäjä napautti ruudukossa — avaa merkintävalinnan. */
+        val editingDay: LocalDate? = null,
+        val busy: Boolean = false,
+        val message: String? = null,
+    ) : UiState {
+        val absenceByDate: Map<String, AbsenceDay> get() = absences.associateBy { it.date }
+        fun dayFor(date: LocalDate): ScannedDay? =
+            days.firstOrNull { it.date == date.toString() }
+    }
+
+    /**
+     * Poissaolojen merkintä aikaväliltä. Erillinen näkymä, koska lomaa ei voi merkitä
+     * skannauksen yhteydessä: loma-ajalle ei suunnitella vuoroja, joten päiviä ei ole
+     * missään jaksossa. Sairausloma taas selviää vasta jälkikäteen.
+     */
+    data class Absence(
+        val from: String = "",
+        val to: String = "",
+        val type: DayType = DayType.SICK,
+        val writeToCalendar: Boolean = true,
+        val calendars: List<CalendarInfo> = emptyList(),
+        val selectedCalendarId: Long? = null,
+        val existing: List<AbsenceDay> = emptyList(),
+        val busy: Boolean = false,
+        val message: String? = null,
+    ) : UiState {
+        val fromDate: LocalDate? get() = Cleanup.parseDate(from)
+        val toDate: LocalDate? get() = Cleanup.parseDate(to)
+        val fromError: Boolean get() = fromDate == null
+        val toError: Boolean get() = toDate == null || (fromDate?.isAfter(toDate) == true)
+        val dayCount: Int
+            get() {
+                val a = fromDate ?: return 0
+                val b = toDate ?: return 0
+                if (a.isAfter(b)) return 0
+                return (java.time.temporal.ChronoUnit.DAYS.between(a, b) + 1).toInt()
+            }
+    }
 
     data class Review(
         val rows: List<ShiftRow>,
@@ -170,29 +193,17 @@ sealed interface UiState {
         val validShifts: List<Shift> get() = rows.mapNotNull { it.toShift() }
 
         /**
-         * Vuorot joista kertyy työaikakorvauksia. Poissaolopäivät jätetään pois:
-         * niiltä maksetaan varsinainen palkka, joka ei sisällä korvauksia.
-         */
-        val workedShifts: List<Shift>
-            get() = rows.filter { it.dayType.countsAsWork }.mapNotNull { it.toShift() }
-
-        val absenceCount: Int get() = rows.count { it.include && !it.dayType.countsAsWork }
-
-        fun absenceDates(type: DayType): List<LocalDate> =
-            rows.filter { it.dayType == type }.mapNotNull { it.toShift()?.date }
-
-        /**
          * Vertailu lasketaan käyttäjän muokkaamista riveistä, ei alkuperäisestä
          * tunnistuksesta — silloin vuoroajan korjaus näkyy heti tarkistuksessa.
          */
         val comparison: ComparisonResult
-            get() = PayCalculator.compare(workedShifts, employerSummary)
+            get() = PayCalculator.compare(validShifts, employerSummary)
 
         val payBreakdown: PayBreakdown?
             get() {
                 val salary = payForm.effectiveMonthlySalary ?: return null
                 return PayCalculator.calculate(
-                    workedShifts,
+                    validShifts,
                     employerSummary,
                     PayInput(
                         monthlySalary = salary,
@@ -385,13 +396,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun reloadHistory() {
         val periods = runCatching { history.all() }.getOrDefault(emptyList())
         val days = runCatching { history.days() }.getOrDefault(emptyList())
+        val absences = runCatching { history.absences() }.getOrDefault(emptyList())
         _state.update { current ->
             if (current !is UiState.History) current
-            else UiState.History(
+            else current.copy(
                 periods = periods,
                 years = history.yearSummaries(periods),
                 days = days,
                 totals = history.totals(periods),
+                absences = absences,
+                editingDay = null,
             )
         }
     }
@@ -501,12 +515,195 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val periods = runCatching { history.all() }.getOrDefault(emptyList())
             val days = runCatching { history.days() }.getOrDefault(emptyList())
+            val absences = runCatching { history.absences() }.getOrDefault(emptyList())
             _state.value = UiState.History(
                 periods = periods,
                 years = history.yearSummaries(periods),
                 days = days,
                 totals = history.totals(periods),
+                absences = absences,
             )
+        }
+    }
+
+    // ---- Poissaolot ---------------------------------------------------------------
+
+    /** Napautus kalenteriruudukossa avaa merkintävalinnan. */
+    fun editDay(date: LocalDate?) {
+        _state.update { if (it is UiState.History) it.copy(editingDay = date) else it }
+    }
+
+    /**
+     * Merkitsee tai purkaa yhden päivän poissaolon historianäkymästä.
+     *
+     * [type] `WORK` purkaa merkinnän. Kalenteri päivitetään samalla, ja jakson luvut
+     * lasketaan uudestaan — muuten merkintä näkyisi tilastossa muttei palkassa.
+     */
+    fun setDayType(date: LocalDate, type: DayType) {
+        viewModelScope.launch {
+            _state.update {
+                if (it is UiState.History) it.copy(busy = true, editingDay = null) else it
+            }
+            val result = runCatching { applyAbsence(listOf(date), type) }
+            reloadHistory()
+            _state.update { current ->
+                if (current !is UiState.History) current
+                else current.copy(
+                    busy = false,
+                    message = result.getOrElse { "Merkintä epäonnistui: ${it.message}" },
+                )
+            }
+        }
+    }
+
+    fun clearHistoryMessage() {
+        _state.update { if (it is UiState.History) it.copy(message = null) else it }
+    }
+
+    fun openAbsence() {
+        val today = LocalDate.now()
+        _state.value = UiState.Absence(
+            from = today.format(UiState.Cleanup.DATE_FORMAT),
+            to = today.format(UiState.Cleanup.DATE_FORMAT),
+        )
+        viewModelScope.launch {
+            val list = runCatching { calendars.writableCalendars() }.getOrDefault(emptyList())
+            val remembered = paySettings.lastCalendarId()
+            updateAbsence { current ->
+                current.copy(
+                    calendars = list,
+                    selectedCalendarId = remembered?.takeIf { id -> list.any { it.id == id } }
+                        ?: list.firstOrNull()?.id,
+                )
+            }
+            refreshAbsenceList()
+        }
+    }
+
+    fun updateAbsenceForm(transform: (UiState.Absence) -> UiState.Absence) {
+        updateAbsence(transform)
+        viewModelScope.launch { refreshAbsenceList() }
+    }
+
+    private fun updateAbsence(transform: (UiState.Absence) -> UiState.Absence) {
+        _state.update { if (it is UiState.Absence) transform(it) else it }
+    }
+
+    private suspend fun refreshAbsenceList() {
+        val current = _state.value as? UiState.Absence ?: return
+        val from = current.fromDate ?: return
+        val to = current.toDate ?: return
+        if (from.isAfter(to)) return
+        val hits = runCatching { history.absencesInRange(from, to) }.getOrDefault(emptyList())
+        updateAbsence { it.copy(existing = hits) }
+    }
+
+    /** Merkitsee valitun aikavälin poissaoloksi tai purkaa merkinnät siltä. */
+    fun applyAbsenceRange(clear: Boolean) {
+        val current = _state.value as? UiState.Absence ?: return
+        val from = current.fromDate ?: return
+        val to = current.toDate ?: return
+        if (from.isAfter(to)) return
+
+        viewModelScope.launch {
+            updateAbsence { it.copy(busy = true, message = null) }
+            val dates = generateSequence(from) { d ->
+                d.plusDays(1).takeIf { !it.isAfter(to) }
+            }.toList()
+            val message = runCatching {
+                applyAbsence(
+                    dates = dates,
+                    type = if (clear) DayType.WORK else current.type,
+                    calendarId = current.selectedCalendarId.takeIf { current.writeToCalendar },
+                )
+            }.getOrElse { "Merkintä epäonnistui: ${it.message}" }
+            refreshAbsenceList()
+            updateAbsence { it.copy(busy = false, message = message) }
+        }
+    }
+
+    /**
+     * Poissaolomerkinnän varsinainen toteutus: kanta, kalenteri ja jaksojen
+     * uudelleenlaskenta samassa paikassa, jotta ne eivät voi joutua eri tahtiin.
+     *
+     * Kalenteriin kirjoitetaan vain jos [calendarId] on annettu. Historiamerkintä
+     * tehdään aina — poissaolo vaikuttaa palkkaan riippumatta siitä näkyykö se
+     * kalenterissa.
+     */
+    private suspend fun applyAbsence(
+        dates: List<LocalDate>,
+        type: DayType,
+        calendarId: Long? = paySettings.lastCalendarId(),
+    ): String {
+        var marked = 0
+        var cleared = 0
+        var calendarWrites = 0
+        val storedDays = runCatching { history.days() }.getOrDefault(emptyList())
+
+        for (date in dates) {
+            val existing = history.absenceOn(date)
+            if (type.countsAsWork) {
+                if (existing == null) continue
+                val day = storedDays.firstOrNull { it.date == date.toString() }
+                val restored = calendars.unmarkAbsence(
+                    calendarId = existing.calendarId,
+                    date = date,
+                    eventId = existing.eventId,
+                    created = existing.eventCreated,
+                    prevTitle = existing.prevTitle,
+                    fallbackTitle = day?.let { ShiftCodes.title(it.code) },
+                )
+                if (restored) calendarWrites++
+                history.clearAbsence(date)
+                cleared++
+            } else {
+                if (existing?.dayType == type) continue
+                // Vanha merkintä puretaan kalenterista ensin, jotta tyypin vaihto
+                // (sairausloma → loma) ei jätä väärää otsikkoa roikkumaan.
+                existing?.let {
+                    calendars.unmarkAbsence(
+                        calendarId = it.calendarId, date = date, eventId = it.eventId,
+                        created = it.eventCreated, prevTitle = it.prevTitle,
+                        fallbackTitle = null,
+                    )
+                }
+                val mark = calendarId?.let {
+                    calendars.markAbsence(it, date, type.calendarTitle.orEmpty())
+                }
+                if (mark?.eventId != null) calendarWrites++
+                history.saveAbsence(
+                    AbsenceDay(
+                        date = date.toString(),
+                        type = type.name,
+                        markedAt = System.currentTimeMillis(),
+                        calendarId = calendarId,
+                        eventId = mark?.eventId,
+                        eventCreated = mark?.created ?: false,
+                        prevTitle = mark?.prevTitle ?: existing?.prevTitle,
+                    )
+                )
+                marked++
+            }
+        }
+
+        val recompute = runCatching { history.recompute(dates, paySettings.load()) }.getOrNull()
+
+        return buildString {
+            when {
+                marked > 0 -> append("Merkitty $marked päivää.")
+                cleared > 0 -> append("Poistettu merkintä $cleared päivältä.")
+                else -> append("Ei muutettavaa.")
+            }
+            if (calendarWrites > 0) append(" Kalenteriin päivitetty $calendarWrites tapahtumaa.")
+            recompute?.let {
+                if (it.periods > 0) append(" Laskettu ${it.periods} jakson luvut uudelleen.")
+                if (it.incompleteDays > 0) {
+                    append(
+                        " Huom: ${it.incompleteDays} päivältä puuttuvat kellonajat, joten " +
+                            "niiden lisätunnit eivät päivittyneet — skannaa jakso uudelleen."
+                    )
+                }
+            }
         }
     }
 
@@ -657,8 +854,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
         viewModelScope.launch {
             updateReview { it.copy(saving = true, error = null) }
+            // Aiemmin merkityt poissaolot pysyvät voimassa myös uudelleenskannauksessa:
+            // ilman tätä kalenteritapahtuman otsikko palautuisi vuorotyypiksi ja
+            // sairausloma katoaisi kalenterista huomaamatta.
+            val absent = runCatching { history.absences() }.getOrDefault(emptyList())
+                .associateBy { it.date }
+            val shiftsToWrite = review.validShifts.map { shift ->
+                val type = absent[shift.date.toString()]?.dayType ?: DayType.WORK
+                if (type.countsAsWork) shift else shift.copy(titleOverride = type.calendarTitle)
+            }
+
             val result = runCatching {
-                calendars.syncShifts(calendarId, calendarName, review.validShifts, range)
+                calendars.syncShifts(calendarId, calendarName, shiftsToWrite, range)
             }
             result.fold(
                 onSuccess = { summary ->
@@ -668,15 +875,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         history.record(
                             batchId = summary.batchId,
                             range = range,
-                            shifts = review.workedShifts,
+                            shifts = review.validShifts,
                             freeDays = review.freeDays,
                             employer = review.employerSummary,
                             comparison = review.comparison,
                             pay = review.payBreakdown,
                             scannedAt = System.currentTimeMillis(),
-                            sickDays = review.absenceDates(DayType.SICK),
-                            vacationDays = review.absenceDates(DayType.VACATION),
                         )
+                        // record() laskee luvut kaikista vuoroista. Jos jaksossa on
+                        // poissaoloja, ne pitää vielä vähentää — muuten merkintä
+                        // katoaisi tilastoista uudelleenskannauksessa.
+                        val absentDates = absent.values
+                            .map { it.localDate }
+                            .filter { it >= range.start && it <= range.endInclusive }
+                        history.recompute(absentDates, review.payForm)
                     }
                     val first = review.validShifts.minByOrNull { it.start }
                     _state.value = UiState.Done(

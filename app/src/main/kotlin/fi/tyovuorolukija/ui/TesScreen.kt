@@ -113,8 +113,11 @@ fun TesScreen(form: PayForm, onBack: () -> Unit, modifier: Modifier = Modifier) 
                         "vain sunnuntai-, ilta- ja yötyö."
                 )
                 Bullet(
-                    "Merkinnän tekee käyttäjä itse tarkistusnäkymässä (Työvuoro / " +
-                        "Sairaus / Loma). Tuloste ei kerro poissaoloja sovellukselle."
+                    "Merkinnän tekee käyttäjä itse: yksittäinen päivä napauttamalla " +
+                        "historian kalenteriruudukkoa, pidemmät jaksot aloitusnäkymän " +
+                        "Poissaolot-painikkeesta. Tuloste ei kerro poissaoloja — " +
+                        "Titania näyttää suunnitellun vuoron, ja loma-ajalle vuoroja " +
+                        "ei suunnitella lainkaan."
                 )
             }
         }

@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.EventBusy
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Tune
@@ -48,6 +49,7 @@ fun HomeScreen(
     onSettings: () -> Unit,
     onTes: () -> Unit,
     onCleanup: () -> Unit,
+    onAbsence: () -> Unit,
     onUndo: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -85,6 +87,15 @@ fun HomeScreen(
             },
             enabled = hasHistory,
             onClick = onHistory,
+        )
+
+        MenuCard(
+            icon = Icons.Default.EventBusy,
+            accent = ShiftColors.Free,
+            title = "Poissaolot",
+            subtitle = "Merkitse sairausloma tai vuosiloma — myös päiville joille " +
+                "ei ole vuoroa",
+            onClick = onAbsence,
         )
 
         MenuCard(

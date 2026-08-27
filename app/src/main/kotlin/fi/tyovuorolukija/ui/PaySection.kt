@@ -51,8 +51,6 @@ fun PaySection(
     printoutPartTime: Double?,
     onFormChange: (PayForm) -> Unit,
     modifier: Modifier = Modifier,
-    /** Sairaus- tai lomapäiviksi merkittyjä vuoroja. Vaikuttaa sekä tarkistukseen että palkkaan. */
-    absenceCount: Int = 0,
 ) {
     var ratesOpen by remember { mutableStateOf(false) }
 
@@ -61,8 +59,6 @@ fun PaySection(
         Text("Palkka ja tarkistus", style = MaterialTheme.typography.titleMedium)
 
         if (comparison != null) ComparisonCard(comparison)
-
-        if (absenceCount > 0) AbsenceNote(absenceCount)
 
         Text(
             "Palkkalaskelma",
@@ -429,51 +425,3 @@ private fun Double.pct(): String =
 /** Sama luku ilman prosenttimerkkiä — menee suoraan tekstikenttään. */
 private fun Double.pctPlain(): String =
     if (this == toLong().toDouble()) toLong().toString() else toString()
-
-/**
- * Selitys sille, miksi luvut eivät enää vastaa tulostetta kun päiviä on merkitty
- * poissaoloksi — ja mitä sovellus **ei** osaa laskea.
- *
- * Poissaoloajan palkka on "varsinainen palkka" (KVTES palkkausluku 5 §), joka ei
- * sisällä työaikakorvauksia. Molemmissa on kuitenkin korotus, jota tämä sovellus ei
- * voi laskea: se perustuu edellisen lomanmääräytymisvuoden (1.4.–31.3.) korvausten
- * suhteeseen varsinaiseen palkkaan (vuosilomaluku 13 § 3 mom), eikä sovellus näe
- * kokonaista vuotta. Sitä ei siis arvata vaan kerrotaan puuttuvaksi.
- */
-@Composable
-private fun AbsenceNote(count: Int) {
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-        ),
-    ) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(
-                "$count päivää merkitty poissaoloksi",
-                style = MaterialTheme.typography.titleSmall,
-            )
-            Text(
-                "Niiltä ei lasketa ilta-, yö-, lauantai- eikä sunnuntaikorvausta. " +
-                    "Peruspalkka jatkuu: sairausajalta varsinainen palkka 60 " +
-                    "kalenteripäivää ja sen jälkeen 2/3 seuraavat 120 päivää " +
-                    "(KVTES V luku 2 §), vuosiloman ajalta varsinainen kuukausipalkka " +
-                    "(vuosilomaluku 13 § 1 mom).",
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Text(
-                "Tarkistus vertaa nyt tehtyjä vuoroja työnantajan erittelyyn — ero " +
-                    "tulosteeseen on odotettu, jos tuloste sisältää myös poissaolopäivät.",
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Text(
-                "Puuttuu: poissaoloajan palkkaan tulee korotus, joka lasketaan " +
-                    "edellisen lomanmääräytymisvuoden korvauksista (enintään 35 %, " +
-                    "vuosilomaluku 13 § 3 mom; sairausajalla vain sunnuntaityön " +
-                    "osuudelta). Sovellus ei näe kokonaista vuotta, joten se ei laske " +
-                    "sitä. Myöskään lomarahaa (4–6 %) ei lasketa.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}

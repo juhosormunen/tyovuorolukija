@@ -141,7 +141,18 @@ Huomioitavaa:
 Lähde: **KVTES 2025–2028**, IV luku (vuosiloma) ja V luku (virka-/työvapaa).
 SOTE-sopimuksessa ei ole näitä lukuja lainkaan.
 
-Käyttäjä merkitsee päivän tarkistusnäkymässä (`DayType`: `WORK` / `SICK` / `VACATION`).
+**Merkintä tehdään aina jälkikäteen, ei skannauksen yhteydessä.** Tämä on koko
+toteutuksen muoto: loma-ajalle ei suunnitella vuoroja, joten lomapäiviä ei ole
+missään jaksossa — ja sairausloman saa tietää vasta kun jakso on jo skannattu.
+Skannaushetkellä merkitseminen ei siis toimisi kummassakaan tapauksessa.
+
+Kaksi reittiä:
+
+| Reitti | Käyttö |
+|---|---|
+| Historian kalenteriruudukon napautus | Yksittäinen päivä, tyypillisesti sairausloma |
+| Aloitusnäkymä → Poissaolot (`AbsenceScreen`) | Aikaväli, myös päivät joille ei ole vuoroa |
+
 Tuloste ei kerro poissaoloja — Titania näyttää suunnitellun vuoron.
 
 - **Varsinainen palkka** (palkkausluku 5 §) = tasopalkka/tasolisä, henkilökohtainen lisä,
@@ -162,14 +173,43 @@ Tuloste ei kerro poissaoloja — Titania näyttää suunnitellun vuoron.
 - **Lomarahaa** (6 / 5 / 4 % heinäkuun varsinaisesta kuukausipalkasta täydeltä
   lomanmääräytymiskuukaudelta) ei lasketa.
 
-Poissaolopäivä kirjoitetaan silti kalenteriin — vuoro oli suunniteltu ja päivä kuuluu
-jaksoon — mutta otsikko korvataan (`Shift.titleOverride` → "Sairausloma" / "Vuosiloma").
-Historiassa ne tallentuvat `ScannedDay`-riveiksi koodilla `S!` / `L!` ja nolla minuutilla:
-näkyvät kalenteriruudukossa, eivät kerrytä tunteja. Huutomerkki erottaa ne oikeista
-vuorokoodeista eikä näy käyttöliittymässä.
+#### Miten merkintä on toteutettu
+
+`AbsenceDay` on **oma taulunsa eikä `ScannedDay`n kenttä**, koska poissaolo ei aina osu
+skannattuun vuoroon. Se on päivätason kerros jaksojen päällä: avain on päivä, ja
+merkinnän puuttuminen tarkoittaa työpäivää (`DayType.WORK` ei koskaan tallennu).
+
+Merkintä tekee kolme asiaa yhdessä (`MainViewModel.applyAbsence`), jotta ne eivät voi
+joutua eri tahtiin:
+
+1. **Kanta.** `absence_days`-rivi.
+2. **Kalenteri.** Jos päivälle on vuoro, tapahtuman otsikko kirjoitetaan päälle ja
+   alkuperäinen otetaan talteen (`AbsenceDay.prevTitle`) — luetaan kalenterista, ei omasta
+   kirjanpidosta, koska käyttäjä on voinut nimetä tapahtuman itse. Jos vuoroa ei ole,
+   luodaan koko päivän tapahtuma ja `eventCreated` merkitään, jotta purku poistaa sen
+   eikä yritä palauttaa otsikkoa jota ei ollut.
+3. **Uudelleenlaskenta.** `HistoryRepository.recompute` laskee kosketettujen jaksojen
+   luvut uudestaan ilman poissaolopäiviä. Ilman tätä merkintä näkyisi tilastossa muttei
+   palkassa.
+
+Uudelleenlaskenta vaatii vuoron kellonajat, joten `scanned_days` sai skeemaversiossa 5
+kentät `startMillis` / `endMillis`. Vanhoille riveille ne **täytetään takautuvasti**
+migraatiossa `synced_shifts`-taulusta — juuri vanhoihin jaksoihin merkintöjä tehdään.
+Jos aikoja ei löydy, sovellus kertoo montako päivää jäi laskematta eikä vaikene siitä.
+
+Uudelleenlaskenta ei käytä työnantajan erittelyä (`EmployerSummary()` tyhjänä), koska
+erittely koskee suunniteltua jaksoa eikä poissaolon jälkeistä todellisuutta. Vain
+koskettuja jaksoja lasketaan uudestaan; muihin ei kosketa, jottei laskutavan vaihto
+siirtäisi vanhoja lukuja ilman syytä.
+
+Uudelleenskannaus säilyttää merkinnät: `save()` lisää voimassa olevien poissaolojen
+otsikot (`Shift.titleOverride`) ennen kalenterikirjoitusta ja ajaa `recompute`n
+`record()`:n jälkeen. Ilman tätä skannaus palauttaisi vuorotyypin otsikoksi ja
+poissaolo katoaisi huomaamatta.
 
 **Merkintä muuttaa tarkistuksen tuloksen.** Työnantajan erittely sisältää poissaolopäivät
-omalla logiikallaan, joten poikkeama on odotettu — se on tieto, ei vika.
+omalla logiikallaan, joten poikkeama on odotettu — se on tieto, ei vika. Siksi
+`employerMatched` nollataan jaksoilta joissa on poissaoloja.
 
 ### Validointi
 
@@ -313,6 +353,7 @@ laitteen takaisin-eleellä (`BackHandler`).
 | `Settings` | `SettingsScreen` | Palkka, TES-prosentit, vähennykset |
 | `Tes` | `TesScreen` | Mihin laskenta perustuu, pykälineen |
 | `Cleanup` | `CleanupScreen` | Sovelluksen luomien tapahtumien poisto aikaväliltä |
+| `Absence` | `AbsenceScreen` | Sairaus- ja lomamerkinnät aikaväliltä, myös vuorottomille päiville |
 
 Historian ja kalenterin poistot on **kytketty ristiin valintaruudulla** molempiin
 suuntiin, mutta ne ovat silti eri asioita: historia on tilastokirjanpitoa,
@@ -329,6 +370,7 @@ ja vahvistusteksti muuttuu valinnan mukaan. Historian poisto ei koskaan koske
 | 2 | `sync_batches`, `sync_actions` — undo-journaali |
 | 3 | `scanned_periods` — jaksohistoria |
 | 4 | `scanned_days` — päiväkohtainen data kalenterinäkymään; `taxCents`, `contributionsCents` |
+| 5 | `absence_days` — sairaus- ja lomamerkinnät; `scanned_days.startMillis`/`endMillis` (täytetään takautuvasti `synced_shifts`ista) |
 
 Migraatiot on kirjoitettu käsin (`exportSchema = false`) ja **testattu oikealla
 laitteella**, ei vain kääntämällä: Room validoi skeeman kannan avautuessa, joten

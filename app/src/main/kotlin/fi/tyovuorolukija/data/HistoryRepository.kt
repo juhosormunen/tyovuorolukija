@@ -1,18 +1,29 @@
 package fi.tyovuorolukija.data
 
 import android.content.Context
+import fi.tyovuorolukija.parser.Confidence
 import fi.tyovuorolukija.parser.EmployerSummary
 import fi.tyovuorolukija.parser.FreeDay
 import fi.tyovuorolukija.parser.Shift
+import fi.tyovuorolukija.parser.ShiftTimes
 import fi.tyovuorolukija.parser.stats.ShiftRhythm
 import fi.tyovuorolukija.parser.tes.ComparisonResult
 import fi.tyovuorolukija.parser.tes.PayBreakdown
+import fi.tyovuorolukija.parser.tes.PayCalculator
+import fi.tyovuorolukija.parser.tes.PayInput
 import fi.tyovuorolukija.parser.tes.SupplementHours
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.LocalDate
+
+/**
+ * Uudelleenlaskennan tulos. [incompleteDays] kertoo montako vuoropäivää jäi ilman
+ * kellonaikoja — niiden lisätunteja ei voi laskea uudestaan, ja se on kerrottava
+ * käyttäjälle eikä vaiettava.
+ */
+data class RecomputeResult(val periods: Int, val incompleteDays: Int)
 
 /** Koko historian palkkakertymä. */
 data class PayTotals(
@@ -50,20 +61,34 @@ data class ShiftTypeCounts(
     val absences: Int get() = sick + vacation
 
     companion object {
-        /** Poissaolopäivien koodit [ScannedDay]-riveillä. */
-        const val SICK_CODE = "S!"
-        const val VACATION_CODE = "L!"
-
-        fun from(days: List<ScannedDay>): ShiftTypeCounts {
+        /**
+         * Poissaolot voivat osua joko suunniteltuun vuoroon tai päivään jolle ei ollut
+         * vuoroa lainkaan (loma). Molemmat lasketaan, mutta vain kerran: vuoropäivä
+         * siirtyy vuorotyypistä poissaoloksi eikä näy kummassakin.
+         */
+        fun from(days: List<ScannedDay>, absences: List<AbsenceDay>): ShiftTypeCounts {
+            val byDate = absences.associateBy { it.date }
             var m = 0; var e = 0; var n = 0; var o = 0; var s = 0; var v = 0
             days.filterNot { it.isFree }.forEach { day ->
-                when (day.code?.uppercase()) {
-                    SICK_CODE -> s++
-                    VACATION_CODE -> v++
-                    "A" -> m++
-                    "I" -> e++
-                    "Y" -> n++
-                    else -> o++
+                when (byDate[day.date]?.dayType) {
+                    DayType.SICK -> s++
+                    DayType.VACATION -> v++
+                    else -> when (day.code?.uppercase()) {
+                        "A" -> m++
+                        "I" -> e++
+                        "Y" -> n++
+                        else -> o++
+                    }
+                }
+            }
+            // Vuorottomat poissaolopäivät: lomaa ei ole missään jaksossa, joten ne
+            // eivät löydy päivälistalta lainkaan.
+            val dayDates = days.map { it.date }.toSet()
+            absences.filterNot { it.date in dayDates }.forEach {
+                when (it.dayType) {
+                    DayType.SICK -> s++
+                    DayType.VACATION -> v++
+                    else -> {}
                 }
             }
             return ShiftTypeCounts(m, e, n, o, s, v)
@@ -84,24 +109,12 @@ data class YearSummary(
     val netCents: Long?,
 )
 
-/**
- * Poissaolopäivä kalenterinäkymään. Minuutit ovat nolla: päivää ei tehty, joten se ei
- * kuulu jakson työtunteihin. Se ei ole myöskään vapaapäivä (`isFree`), koska vuoro oli
- * suunniteltu — ero näkyy tilastoissa.
- */
-private fun absenceDay(periodKey: String, date: LocalDate, code: String) = ScannedDay(
-    periodKey = periodKey,
-    date = date.toString(),
-    code = code,
-    isFree = false,
-    minutes = 0,
-)
-
 class HistoryRepository(context: Context) {
 
     private val db = ShiftDatabase.get(context)
     private val dao = db.scannedPeriods()
     private val dayDao = db.scannedDays()
+    private val absenceDao = db.absenceDays()
 
     suspend fun all(): List<ScannedPeriod> = withContext(Dispatchers.IO) { dao.all() }
 
@@ -165,13 +178,6 @@ class HistoryRepository(context: Context) {
         comparison: ComparisonResult,
         pay: PayBreakdown?,
         scannedAt: Long,
-        /**
-         * Sairaus- ja lomapäiviksi merkityt vuorot. Ne eivät kerrytä työaikakorvauksia
-         * eivätkä tunteja, mutta ne näkyvät kalenterinäkymässä — muuten päivä katoaisi
-         * historiasta kokonaan, vaikka se on osa jaksoa.
-         */
-        sickDays: List<LocalDate> = emptyList(),
-        vacationDays: List<LocalDate> = emptyList(),
     ) = withContext(Dispatchers.IO) {
         val supplements = SupplementHours.of(shifts)
         val rhythm = ShiftRhythm.of(shifts, freeDays)
@@ -188,6 +194,10 @@ class HistoryRepository(context: Context) {
                     code = it.code,
                     isFree = false,
                     minutes = java.time.temporal.ChronoUnit.MINUTES.between(it.start, it.end),
+                    // Ajat talteen, jotta lisät voidaan laskea uudestaan jos päivä
+                    // merkitään myöhemmin sairauslomaksi tai lomaksi.
+                    startMillis = ShiftTimes.startMillis(it),
+                    endMillis = ShiftTimes.endMillis(it),
                 )
             } + freeDays.map {
                 ScannedDay(
@@ -197,8 +207,7 @@ class HistoryRepository(context: Context) {
                     isFree = true,
                     minutes = 0,
                 )
-            } + sickDays.map { absenceDay(periodKey, it, ShiftTypeCounts.SICK_CODE) }
-                + vacationDays.map { absenceDay(periodKey, it, ShiftTypeCounts.VACATION_CODE) }
+            }
         )
 
         dao.upsert(
@@ -235,6 +244,121 @@ class HistoryRepository(context: Context) {
             )
         )
     }
+
+    // ---- Poissaolot -------------------------------------------------------------
+
+    suspend fun absences(): List<AbsenceDay> = withContext(Dispatchers.IO) { absenceDao.all() }
+
+    suspend fun absencesInRange(from: LocalDate, to: LocalDate): List<AbsenceDay> =
+        withContext(Dispatchers.IO) { absenceDao.inRange(from.toString(), to.toString()) }
+
+    suspend fun absenceOn(date: LocalDate): AbsenceDay? =
+        withContext(Dispatchers.IO) { absenceDao.byDate(date.toString()) }
+
+    suspend fun saveAbsence(day: AbsenceDay) = withContext(Dispatchers.IO) {
+        absenceDao.upsert(day)
+    }
+
+    suspend fun clearAbsence(date: LocalDate) = withContext(Dispatchers.IO) {
+        absenceDao.deleteByDate(date.toString())
+    }
+
+    /**
+     * Laskee jaksojen tunnusluvut uudestaan nykyisillä poissaolomerkinnöillä.
+     *
+     * Vain [dates]-päiviä koskevat jaksot käsitellään. Koskemattomia jaksoja ei
+     * lasketa uudestaan tarkoituksella: alkuperäinen laskelma sai käyttää työnantajan
+     * omia tuntilukuja, tämä ei voi (erittely koskee suunniteltua jaksoa, ei
+     * poissaolon jälkeistä todellisuutta). Laskutavan vaihtaminen turhaan siirtäisi
+     * vanhoja lukuja ilman syytä.
+     */
+    suspend fun recompute(dates: Collection<LocalDate>, form: PayForm): RecomputeResult =
+        withContext(Dispatchers.IO) {
+            if (dates.isEmpty()) return@withContext RecomputeResult(0, 0)
+            val absent = absenceDao.all().map { it.date }.toSet()
+            val keys = dates.map { it.toString() }
+            val periods = dao.all().filter { p ->
+                keys.any { it >= p.rangeStart && it <= p.rangeEnd }
+            }
+
+            var incomplete = 0
+            periods.forEach { period ->
+                val days = dayDao.forPeriod(period.key)
+                val freeDays = days.filter { it.isFree }
+                    .map { FreeDay(LocalDate.parse(it.date), "") }
+                val worked = days.filter { !it.isFree && it.date !in absent }
+                incomplete += worked.count { it.startMillis == null }
+
+                val shifts = worked.mapNotNull { it.toShift() }
+                val supplements = SupplementHours.of(shifts)
+                val rhythm = ShiftRhythm.of(shifts, freeDays)
+                val hasAbsence = days.any { it.date in absent }
+
+                val pay = form.effectiveMonthlySalary?.let { salary ->
+                    PayCalculator.calculate(
+                        shifts,
+                        // Tyhjä erittely: laskenta pakotetaan omiin tunteihin. Työnantajan
+                        // luvut sisältävät poissaolopäivät, joten niiden käyttö kumoaisi
+                        // juuri sen mitä merkinnällä haettiin.
+                        EmployerSummary(),
+                        PayInput(
+                            monthlySalary = salary,
+                            partTimePercent = form.partTime,
+                            taxPercent = form.tax,
+                            rates = form.rates,
+                            contributions = form.contributions,
+                        ),
+                    )
+                }
+
+                dao.upsert(
+                    period.copy(
+                        totalMinutes = supplements.total,
+                        eveningMinutes = supplements.evening,
+                        nightMinutes = supplements.night,
+                        saturdayMinutes = supplements.saturday,
+                        sundayMinutes = supplements.sunday,
+                        // Vertailu työnantajan erittelyyn ei enää päde: erittely kattaa
+                        // suunnitellun jakson, laskelma tehdyt päivät.
+                        employerMatched = if (hasAbsence) null else period.employerMatched,
+                        shiftCount = rhythm.shiftCount,
+                        nightShiftCount = rhythm.nightShiftCount,
+                        weekendShiftCount = rhythm.weekendShiftCount,
+                        longestWorkStreakDays = rhythm.longestWorkStreakDays,
+                        shortestRestMinutes = rhythm.shortestRestMinutes,
+                        shortRestCount = rhythm.shortRestCount,
+                        freeDayCount = rhythm.freeDayCount,
+                        monthlySalaryCents = pay?.monthlySalary?.cents(),
+                        supplementsCents = pay?.supplementsTotal?.cents(),
+                        grossCents = pay?.gross?.cents(),
+                        netCents = pay?.net?.cents(),
+                        taxCents = pay?.tax?.cents(),
+                        contributionsCents = pay?.contributions?.cents(),
+                    )
+                )
+            }
+            RecomputeResult(periods.size, incomplete)
+        }
+
+    /**
+     * Vuoro tallennetusta päivästä. Null jos aikoja ei ole — näin käy vain ennen
+     * skeemaversiota 5 tallennetuille päiville, joille migraatio ei löytänyt
+     * vastinetta `synced_shifts`-taulusta.
+     */
+    private fun ScannedDay.toShift(): Shift? {
+        val start = startMillis ?: return null
+        val end = endMillis ?: return null
+        return Shift(
+            code = code,
+            start = start.toHelsinki(),
+            end = end.toHelsinki(),
+            confidence = Confidence.OK,
+            source = "",
+        )
+    }
+
+    private fun Long.toHelsinki(): java.time.LocalDateTime =
+        java.time.Instant.ofEpochMilli(this).atZone(ShiftTimes.HELSINKI).toLocalDateTime()
 
     /** Jaksot ryhmiteltynä alkupäivän vuoden mukaan. */
     fun yearSummaries(periods: List<ScannedPeriod>): List<YearSummary> =

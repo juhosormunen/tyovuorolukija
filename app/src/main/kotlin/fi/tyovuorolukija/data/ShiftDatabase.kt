@@ -155,7 +155,70 @@ data class ScannedDay(
     val code: String?,
     val isFree: Boolean,
     val minutes: Long,
+    /**
+     * Vuoron todellinen alku ja loppu. Ilman näitä jakson työaikakorvauksia ei voi
+     * laskea uudestaan sen jälkeen kun päivä on merkitty poissaoloksi — pelkistä
+     * minuuteista ei näe osuiko vuoro yöhön vai sunnuntaille.
+     *
+     * Null vapaapäivillä ja ennen skeemaversiota 5 tallennetuilla riveillä, joille
+     * ajat ei löytynyt `synced_shifts`-taulusta migraatiossa.
+     */
+    val startMillis: Long? = null,
+    val endMillis: Long? = null,
 )
+
+/**
+ * Päivä jolta työvuoro jäi tekemättä: sairausloma tai vuosiloma.
+ *
+ * **Erillinen taulu eikä [ScannedDay]n kenttä**, koska poissaolo ei aina osu
+ * skannattuun vuoroon. Lomalle ei suunnitella vuoroja lainkaan, joten lomapäivä ei
+ * ole missään jaksossa — ja sairausloman saa tietää vasta jälkikäteen, kun jakso on
+ * jo skannattu ja tallennettu. Merkintä on siis päivätason kerros jaksojen päällä.
+ *
+ * [prevTitle] ja [createdEventId] tekevät merkinnän kumottavaksi: joko tapahtuman
+ * otsikko kirjoitettiin päälle (silloin alkuperäinen on talteen otettu) tai
+ * tapahtuma luotiin tyhjään päivään (silloin se poistetaan merkintää purettaessa).
+ */
+@Entity(tableName = "absence_days", indices = [Index(value = ["date"], unique = true)])
+data class AbsenceDay(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val date: String,
+    /** [fi.tyovuorolukija.data.DayType]-nimi: SICK tai VACATION. */
+    val type: String,
+    val markedAt: Long,
+    val calendarId: Long? = null,
+    /** Kalenteritapahtuma jota merkintä koskee. Null jos kalenteriin ei kirjoitettu. */
+    val eventId: Long? = null,
+    /** True jos tapahtuma luotiin tätä merkintää varten (päivässä ei ollut vuoroa). */
+    val eventCreated: Boolean = false,
+    /** Olemassa olleen tapahtuman otsikko ennen ylikirjoitusta. */
+    val prevTitle: String? = null,
+) {
+    val dayType: DayType get() = DayType.fromStorage(type)
+    val localDate: java.time.LocalDate get() = java.time.LocalDate.parse(date)
+}
+
+@Dao
+interface AbsenceDayDao {
+
+    @Query("SELECT * FROM absence_days ORDER BY date")
+    suspend fun all(): List<AbsenceDay>
+
+    @Query("SELECT * FROM absence_days WHERE date BETWEEN :from AND :to ORDER BY date")
+    suspend fun inRange(from: String, to: String): List<AbsenceDay>
+
+    @Query("SELECT * FROM absence_days WHERE date = :date LIMIT 1")
+    suspend fun byDate(date: String): AbsenceDay?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(day: AbsenceDay)
+
+    @Query("DELETE FROM absence_days WHERE date = :date")
+    suspend fun deleteByDate(date: String)
+
+    @Query("DELETE FROM absence_days")
+    suspend fun deleteAll()
+}
 
 @Dao
 interface ScannedDayDao {
@@ -256,9 +319,9 @@ interface SyncBatchDao {
 @Database(
     entities = [
         SyncedShift::class, SyncBatch::class, SyncAction::class,
-        ScannedPeriod::class, ScannedDay::class,
+        ScannedPeriod::class, ScannedDay::class, AbsenceDay::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 abstract class ShiftDatabase : RoomDatabase() {
@@ -266,6 +329,7 @@ abstract class ShiftDatabase : RoomDatabase() {
     abstract fun syncBatches(): SyncBatchDao
     abstract fun scannedPeriods(): ScannedPeriodDao
     abstract fun scannedDays(): ScannedDayDao
+    abstract fun absenceDays(): AbsenceDayDao
 
     companion object {
         /**
@@ -370,6 +434,45 @@ abstract class ShiftDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v4 -> v5: poissaolomerkinnät ja vuoroajat päivätauluun.
+         *
+         * Vuoroajat **täytetään takautuvasti** `synced_shifts`-taulusta. Ilman sitä
+         * ennen tätä versiota skannatut jaksot eivät osaisi laskea lisiään uudestaan,
+         * kun päivä merkitään sairauslomaksi — ja juuri vanhoihin jaksoihin merkintöjä
+         * tehdään, koska sairausloman saa tietää vasta jälkikäteen. Mäppäys on
+         * olemassa jokaiselle kalenteriin kirjoitetulle vuorolle, joten osuma on hyvä.
+         */
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `absence_days` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`date` TEXT NOT NULL, " +
+                        "`type` TEXT NOT NULL, " +
+                        "`markedAt` INTEGER NOT NULL, " +
+                        "`calendarId` INTEGER, " +
+                        "`eventId` INTEGER, " +
+                        "`eventCreated` INTEGER NOT NULL DEFAULT 0, " +
+                        "`prevTitle` TEXT)"
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_absence_days_date` " +
+                        "ON `absence_days` (`date`)"
+                )
+                db.execSQL("ALTER TABLE `scanned_days` ADD COLUMN `startMillis` INTEGER")
+                db.execSQL("ALTER TABLE `scanned_days` ADD COLUMN `endMillis` INTEGER")
+                db.execSQL(
+                    "UPDATE `scanned_days` SET " +
+                        "`startMillis` = (SELECT s.`startMillis` FROM `synced_shifts` s " +
+                        "WHERE s.`localDate` = `scanned_days`.`date` LIMIT 1), " +
+                        "`endMillis` = (SELECT s.`endMillis` FROM `synced_shifts` s " +
+                        "WHERE s.`localDate` = `scanned_days`.`date` LIMIT 1) " +
+                        "WHERE `isFree` = 0"
+                )
+            }
+        }
+
         @Volatile
         private var instance: ShiftDatabase? = null
 
@@ -378,7 +481,8 @@ abstract class ShiftDatabase : RoomDatabase() {
                 context.applicationContext,
                 ShiftDatabase::class.java,
                 "tyovuorolukija.db",
-            ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build().also { instance = it }
+            ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                .build().also { instance = it }
         }
     }
 }

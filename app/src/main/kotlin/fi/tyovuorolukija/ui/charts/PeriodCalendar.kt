@@ -2,6 +2,7 @@ package fi.tyovuorolukija.ui.charts
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import fi.tyovuorolukija.data.DayType
 import fi.tyovuorolukija.data.ScannedDay
 import fi.tyovuorolukija.ui.theme.ShiftColors
 import java.time.DayOfWeek
@@ -43,6 +45,10 @@ fun PeriodCalendar(
     rangeStart: LocalDate,
     rangeEnd: LocalDate,
     modifier: Modifier = Modifier,
+    /** Poissaolomerkinnät päivämäärän mukaan (ISO-avain). */
+    absences: Map<String, DayType> = emptyMap(),
+    /** Ruudun napautus. Null tekee ruudukosta pelkän kuvan. */
+    onDayClick: ((LocalDate) -> Unit)? = null,
 ) {
     if (days.isEmpty()) return
 
@@ -82,11 +88,19 @@ fun PeriodCalendar(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 week.forEach { date ->
+                    val inRange = !date.isBefore(rangeStart) && !date.isAfter(rangeEnd)
                     DayCell(
                         date = date,
                         day = byDate[date],
-                        inRange = !date.isBefore(rangeStart) && !date.isAfter(rangeEnd),
-                        modifier = Modifier.weight(1f),
+                        inRange = inRange,
+                        absence = absences[date.toString()],
+                        modifier = Modifier
+                            .weight(1f)
+                            .then(
+                                if (onDayClick != null && inRange) {
+                                    Modifier.clickable { onDayClick(date) }
+                                } else Modifier
+                            ),
                     )
                 }
             }
@@ -99,14 +113,14 @@ private fun DayCell(
     date: LocalDate,
     day: ScannedDay?,
     inRange: Boolean,
+    absence: DayType? = null,
     modifier: Modifier = Modifier,
 ) {
     // Poissaolopäivä ei ole vuoro eikä vapaapäivä: vuoro oli suunniteltu mutta jäi
     // tekemättä. Vaaleampi harmaa erottaa sen vapaapäivästä ilman uutta kategorista väriä.
-    val isAbsence = day?.code?.endsWith(ABSENCE_SUFFIX) == true
     val background = when {
+        absence != null -> ShiftColors.Free.copy(alpha = 0.22f)
         day == null -> Color.Transparent
-        isAbsence -> ShiftColors.Free.copy(alpha = 0.22f)
         day.isFree -> ShiftColors.Free.copy(alpha = 0.45f)
         else -> ShiftColors.forCode(day.code)
     }
@@ -117,7 +131,7 @@ private fun DayCell(
             .clip(RoundedCornerShape(6.dp))
             .background(background)
             .then(
-                if (day == null && inRange) {
+                if (day == null && absence == null && inRange) {
                     Modifier.border(
                         1.dp,
                         MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
@@ -133,11 +147,18 @@ private fun DayCell(
             Text(
                 date.dayOfMonth.toString(),
                 style = MaterialTheme.typography.labelSmall,
-                color = if (day == null) MaterialTheme.colorScheme.onSurfaceVariant
-                else CellInk,
+                color = if (day == null && absence == null) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else CellInk,
             )
-            // Koodi kirjaimena: väri ei saa olla ainoa tunniste.
-            day?.code?.removeSuffix(ABSENCE_SUFFIX)?.let {
+            // Kirjaimena: väri ei saa olla ainoa tunniste. Poissaolo peittää
+            // vuorokoodin, koska se on se mikä päivästä lopulta tuli.
+            val label = when (absence) {
+                DayType.SICK -> "S"
+                DayType.VACATION -> "L"
+                else -> day?.code
+            }
+            label?.let {
                 Text(
                     it.uppercase(),
                     style = MaterialTheme.typography.labelSmall,
@@ -148,9 +169,6 @@ private fun DayCell(
         }
     }
 }
-
-/** Poissaolokoodien pääte (`S!`, `L!`); ks. ShiftTypeCounts. Ei näytetä käyttäjälle. */
-private const val ABSENCE_SUFFIX = "!"
 
 /** Tumma muste vaaleilla vuoroväreillä — sama sävy kaikissa, jotta ruudukko on rauhallinen. */
 private val CellInk = Color(0xFF16302A)

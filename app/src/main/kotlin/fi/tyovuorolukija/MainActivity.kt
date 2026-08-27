@@ -44,6 +44,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import fi.tyovuorolukija.ui.AbsenceScreen
 import fi.tyovuorolukija.ui.AboutScreen
 import fi.tyovuorolukija.ui.CaptureScreen
 import fi.tyovuorolukija.ui.CleanupScreen
@@ -120,6 +121,7 @@ private fun AppRoot(viewModel: MainViewModel = viewModel()) {
         is UiState.Tes -> "Työehtosopimus"
         is UiState.About -> "Tietoa sovelluksesta"
         is UiState.Cleanup -> "Siivoa kalenteri"
+        is UiState.Absence -> "Poissaolot"
         is UiState.History -> "Historia ja tilastot"
         is UiState.Review -> "Tarkista vuorot"
         is UiState.Working -> stringResource(R.string.app_name)
@@ -173,6 +175,7 @@ private fun AppRoot(viewModel: MainViewModel = viewModel()) {
                 onSettings = viewModel::openSettings,
                 onTes = viewModel::openTes,
                 onCleanup = viewModel::openCleanup,
+                onAbsence = viewModel::openAbsence,
                 onUndo = viewModel::undo,
                 modifier = content,
             )
@@ -209,6 +212,14 @@ private fun AppRoot(viewModel: MainViewModel = viewModel()) {
                 modifier = content,
             )
 
+            is UiState.Absence -> AbsenceScreen(
+                state = s,
+                onChange = viewModel::updateAbsenceForm,
+                onApply = viewModel::applyAbsenceRange,
+                onBack = viewModel::reset,
+                modifier = content,
+            )
+
             is UiState.About -> AboutScreen(
                 onBack = viewModel::reset,
                 modifier = content,
@@ -229,6 +240,13 @@ private fun AppRoot(viewModel: MainViewModel = viewModel()) {
                 onClearAll = viewModel::clearHistory,
                 onBack = viewModel::reset,
                 modifier = content,
+                absences = s.absences,
+                editingDay = s.editingDay,
+                busy = s.busy,
+                message = s.message,
+                onDayClick = viewModel::editDay,
+                onSetDayType = viewModel::setDayType,
+                onDismissMessage = viewModel::clearHistoryMessage,
             )
 
             is UiState.Working -> Centered(content) {

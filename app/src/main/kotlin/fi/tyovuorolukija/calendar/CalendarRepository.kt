@@ -101,6 +101,9 @@ data class FoundEvent(
  */
 const val APP_MARKER = "Lisätty Työvuorolukijalla."
 
+/** Mitä kalenterille tapahtui poissaoloa merkittäessä — tarvitaan merkinnän purkuun. */
+data class AbsenceMark(val eventId: Long?, val created: Boolean, val prevTitle: String?)
+
 /** Tallennushetken muoto tapahtuman kuvauksessa. */
 private val SAVED_AT_FORMAT: DateTimeFormatter =
     DateTimeFormatter.ofPattern("d.M.yyyy 'klo' HH:mm")
@@ -594,6 +597,114 @@ class CalendarRepository(private val context: Context) {
             dao.deleteByEventId(id)
         }
         deleted
+    }
+
+    // ---- Poissaolomerkinnät ------------------------------------------------------
+
+    /**
+     * Kirjoittaa poissaolon kalenteriin yhdelle päivälle.
+     *
+     * Kaksi tapausta, ja ne on erotettava jotta merkinnän purku osaa palata alkutilaan:
+     *  - päivälle on jo sovelluksen luoma vuoro → otsikko kirjoitetaan päälle ja
+     *    alkuperäinen otetaan talteen [AbsenceMark.prevTitle]:een
+     *  - päivälle ei ole vuoroa (tyypillinen loma) → luodaan koko päivän tapahtuma,
+     *    joka poistetaan kun merkintä puretaan
+     *
+     * Nämä eivät mene undo-journaaliin: journaali kumoaa viimeisimmän *skannauksen*,
+     * ja poissaolomerkintä on erillinen toimenpide, jonka oma purku on merkinnän
+     * poistaminen. Yhteinen journaali sotkisi molemmat.
+     */
+    @SuppressLint("MissingPermission")
+    suspend fun markAbsence(
+        calendarId: Long,
+        date: LocalDate,
+        title: String,
+    ): AbsenceMark = withContext(Dispatchers.IO) {
+        val existing = dao.inRange(calendarId, date.toString(), date.toString()).firstOrNull()
+
+        if (existing != null) {
+            val snapshot = readEvent(existing.eventId)
+            if (snapshot != null) {
+                val uri = ContentUris.withAppendedId(
+                    CalendarContract.Events.CONTENT_URI, existing.eventId,
+                )
+                val values = ContentValues().apply {
+                    put(CalendarContract.Events.TITLE, title)
+                }
+                val rows = runCatching {
+                    context.contentResolver.update(uri, values, null, null)
+                }.getOrElse { 0 }
+                if (rows > 0) {
+                    return@withContext AbsenceMark(
+                        eventId = existing.eventId,
+                        created = false,
+                        // Kalenterista luettu otsikko, ei oma kirjanpitomme: käyttäjä on
+                        // voinut nimetä tapahtuman itse, ja purun pitää palauttaa se.
+                        prevTitle = snapshot.title ?: existing.title,
+                    )
+                }
+            }
+        }
+
+        // Ei vuoroa → koko päivän tapahtuma. Koko päivän tapahtuman ajat ovat
+        // CalendarContractissa UTC-keskiyöstä keskiyöhön, ei paikallisesta ajasta.
+        val startUtc = date.atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli()
+        val endUtc = date.plusDays(1).atStartOfDay(java.time.ZoneOffset.UTC)
+            .toInstant().toEpochMilli()
+        val values = ContentValues().apply {
+            put(CalendarContract.Events.CALENDAR_ID, calendarId)
+            put(CalendarContract.Events.TITLE, title)
+            put(CalendarContract.Events.ALL_DAY, 1)
+            put(CalendarContract.Events.DTSTART, startUtc)
+            put(CalendarContract.Events.DTEND, endUtc)
+            put(CalendarContract.Events.EVENT_TIMEZONE, "UTC")
+            put(
+                CalendarContract.Events.DESCRIPTION,
+                "$APP_MARKER ${LocalDateTime.now(ShiftTimes.HELSINKI).format(SAVED_AT_FORMAT)}",
+            )
+        }
+        val newId = runCatching {
+            context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
+        }.getOrNull()?.lastPathSegment?.toLongOrNull()
+
+        AbsenceMark(eventId = newId, created = newId != null, prevTitle = null)
+    }
+
+    /**
+     * Purkaa kalenterimerkinnän: luotu tapahtuma poistetaan, ylikirjoitettu palautetaan.
+     */
+    @SuppressLint("MissingPermission")
+    suspend fun unmarkAbsence(
+        calendarId: Long?,
+        date: LocalDate,
+        eventId: Long?,
+        created: Boolean,
+        prevTitle: String?,
+        /** Otsikko jos tallennettua alkuperäistä ei ole — tyypillisesti vuorotyypin nimi. */
+        fallbackTitle: String?,
+    ): Boolean = withContext(Dispatchers.IO) {
+        if (created) {
+            if (eventId == null) return@withContext false
+            val uri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId)
+            return@withContext runCatching {
+                context.contentResolver.delete(uri, null, null)
+            }.getOrDefault(0) > 0
+        }
+
+        // Tapahtuma on voitu luoda uudestaan jakson uudelleenskannauksessa, jolloin
+        // tallennettu id on vanhentunut. Haetaan silloin päivän nykyinen tapahtuma.
+        val target = eventId
+            ?: calendarId?.let {
+                dao.inRange(it, date.toString(), date.toString()).firstOrNull()?.eventId
+            }
+            ?: return@withContext false
+        val title = prevTitle ?: fallbackTitle ?: return@withContext false
+        val uri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, target)
+        val values = ContentValues().apply {
+            put(CalendarContract.Events.TITLE, title)
+        }
+        runCatching { context.contentResolver.update(uri, values, null, null) }
+            .getOrDefault(0) > 0
     }
 
     /**

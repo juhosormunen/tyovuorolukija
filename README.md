@@ -13,21 +13,25 @@ vuorot puhelimen kalenteriin.
 2. Tarkista tunnistetut vuorot. Punaisella merkityt vaativat huomiota — joko
    suunnitelma ja toteutunut poikkesivat, tai vuorokoodin merkitystä ei ole varmistettu.
    Aikoja voi muokata suoraan (muoto `pp.kk.vvvv tt:mm`), ja rivin voi jättää pois.
-3. Merkitse tarvittaessa päivä **sairaslomaksi tai lomaksi**. Poissaolopäivä menee
-   kalenteriin omalla otsikollaan, mutta siitä ei lasketa ilta-, yö-, lauantai- eikä
-   sunnuntaikorvausta: poissaoloajalta maksetaan varsinainen palkka, johon
-   työaikakorvaukset eivät kuulu (KVTES palkkausluku 5 §).
-4. Katso palkkaosio: sovellus laskee ilta-, yö-, lauantai- ja sunnuntaityötunnit
+3. Katso palkkaosio: sovellus laskee ilta-, yö-, lauantai- ja sunnuntaityötunnit
    itsenäisesti TES:n säännöistä ja vertaa niitä tulosteen omaan erittelyyn.
    Syöttämällä kuukausipalkan (ja veroprosentin) saat brutto- ja nettopalkan lisineen.
-5. Valitse kalenteri ja tallenna. Tallennuksen voi kumota — painike näkyy sekä heti
+4. Valitse kalenteri ja tallenna. Tallennuksen voi kumota — painike näkyy sekä heti
    tallennuksen jälkeen että aloitusnäkymän alalaidassa.
-6. Tallennetut jaksot kertyvät **historiaan** (aloitusnäkymä → "Historia ja tilastot"):
+5. Tallennetut jaksot kertyvät **historiaan** (aloitusnäkymä → "Historia ja tilastot"):
    työtunnit ja lisätunnit jaksoittain, arvioitu palkka, yövuorojen määrä, lyhimmät
    lepoajat ja vuosikertymä. Kumottu tallennus poistuu myös historiasta.
 
 Vapaapäiviä ei kirjoiteta kalenteriin, mutta ne huomioidaan: jos päivä on aiemmin
 ollut työvuoro ja muuttuu vapaaksi, tapahtuma poistetaan.
+
+**Sairausloma ja vuosiloma** merkitään jälkikäteen, ei skannauksen yhteydessä — loma-ajalle
+ei suunnitella vuoroja, ja sairausloman saa tietää vasta kun lista on jo luettu. Yksittäisen
+päivän merkitset napauttamalla sitä historian kalenteriruudukossa; pidemmät jaksot ja päivät
+joille ei ole vuoroa aloitusnäkymän **Poissaolot**-painikkeesta. Poissaolopäivästä ei lasketa
+ilta-, yö-, lauantai- eikä sunnuntaikorvausta, koska poissaoloajalta maksetaan varsinainen
+palkka, johon työaikakorvaukset eivät kuulu (KVTES palkkausluku 5 §). Jaksojen luvut
+päivittyvät heti, ja kalenterimerkintä nimetään uudelleen.
 
 Palkkalaskelma on suuntaa-antava eikä huomioi luontoisetuja, lomarahaa, kertaeriä
 eikä verokortin tulorajaa. Sairaus- ja loma-ajan palkkaan tulee lisäksi korotus
