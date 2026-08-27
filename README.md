@@ -7,6 +7,38 @@ vuorot puhelimen kalenteriin.
 - Kalenteriin kirjoitetaan **vasta kun käyttäjä on tarkistanut ja hyväksynyt** vuorot.
 - Saman jakson voi skannata uudestaan: tapahtumat päivittyvät, eivät duplikoidu.
 
+Sovelluksella **ei ole verkkoyhteyslupaa** lainkaan (`INTERNET`-oikeutta ei ole
+manifestissa), joten se ei voi lähettää tietoja mihinkään edes vahingossa.
+
+## Asennus
+
+Lataa uusin versio — tämä linkki osoittaa aina tuoreimpaan julkaisuun:
+
+**<https://github.com/juhosormunen/tyovuorolukija/releases/latest/download/Tyovuorolukija.apk>**
+
+Sovellusta ei jaeta Google Playn kautta, joten Android varoittaa asennuksesta.
+Varoitukset ovat odotettuja, eivät merkki viasta:
+
+1. Avaa linkki puhelimen selaimella. Chrome kysyy *"Haluatko ladata tiedoston?"* —
+   valitse **Lataa**.
+2. Napauta latausilmoitusta. Android sanoo, ettei selaimella ole lupaa asentaa
+   sovelluksia. Valitse **Asetukset** → salli asennus tästä lähteestä → palaa takaisin.
+3. Play Protect näyttää *"Tuntematon sovellus"*. Valitse **Asenna joka tapauksessa**.
+   Google ei ole tarkastanut sovellusta, koska sitä ei jaeta kaupan kautta.
+4. Ensimmäisellä käytöllä sovellus kysyy kameran ja kalenterin käyttöoikeudet.
+   Kalenterilupaa kysytään vasta kun vuorot on tunnistettu.
+
+### Päivittäminen
+
+Lataa sama linkki uudestaan ja asenna vanhan päälle. **Älä poista sovellusta ensin** —
+päivitys säilyttää historian ja kalenterikirjanpidon. Kaikki julkaisut on
+allekirjoitettu samalla avaimella, joten Android hyväksyy päivityksen.
+
+Sovellus ei tarkista päivityksiä itse eikä ilmoita niistä: se vaatisi
+verkkoyhteysluvan, jota tässä ei haluta. Uudet versiot näkyvät
+[Releases-sivulla](https://github.com/juhosormunen/tyovuorolukija/releases).
+Asennetun version näet aloitusnäkymän alalaidasta.
+
 ## Käyttö
 
 1. Ota kuva koko tulosteesta (tai valitse valmis kuva galleriasta).
