@@ -93,8 +93,8 @@ fun HomeScreen(
             icon = Icons.Default.EventBusy,
             accent = ShiftColors.Free,
             title = "Poissaolot",
-            subtitle = "Merkitse sairausloma tai vuosiloma — myös päiville joille " +
-                "ei ole vuoroa",
+            subtitle = "Merkitse loma-ajat ja pidemmät sairauslomat — myös päiville " +
+                "joille ei ole vuoroa",
             onClick = onAbsence,
         )
 

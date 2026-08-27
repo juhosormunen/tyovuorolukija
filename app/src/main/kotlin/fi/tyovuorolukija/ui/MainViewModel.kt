@@ -154,7 +154,12 @@ sealed interface UiState {
     data class Absence(
         val from: String = "",
         val to: String = "",
-        val type: DayType = DayType.SICK,
+        /**
+         * Oletuksena loma: sairausloman voi merkitä nopeammin napauttamalla päivää
+         * historiassa, mutta lomapäiviä ei ole missään jaksossa eikä siis myöskään
+         * ruudukossa — ne pääsee merkitsemään vain täältä.
+         */
+        val type: DayType = DayType.VACATION,
         val writeToCalendar: Boolean = true,
         val calendars: List<CalendarInfo> = emptyList(),
         val selectedCalendarId: Long? = null,

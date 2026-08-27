@@ -118,9 +118,15 @@ fun AbsenceScreen(
                     when (state.type) {
                         DayType.SICK ->
                             "Varsinainen palkka 60 kalenteripäivältä, sen jälkeen 2/3 " +
-                                "seuraavilta 120 päivältä (KVTES V luku 2 §)."
+                                "seuraavilta 120 päivältä (KVTES V luku 2 §). " +
+                                "Sairausloma osuu tyypillisesti suunnitellun vuoron " +
+                                "päälle — yksittäisen päivän voit merkitä myös " +
+                                "napauttamalla sitä historian kalenterissa."
                         else ->
-                            "Varsinainen kuukausipalkka (KVTES vuosilomaluku 13 § 1 mom)."
+                            "Varsinainen kuukausipalkka (KVTES vuosilomaluku 13 § 1 mom). " +
+                                "Loma on työnantajan tiedossa etukäteen, joten " +
+                                "lomapäiville ei yleensä ole vuoroa eivätkä ne ole " +
+                                "missään skannatussa jaksossa."
                     },
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -137,9 +143,19 @@ fun AbsenceScreen(
                     Text("Merkitse myös kalenteriin")
                 }
                 Text(
-                    "Vuoro jää kalenteriin kellonaikoineen, otsikkoon lisätään " +
-                        "merkintä (esim. \"SAIRAS · Yö (y)\"). Jos päivälle ei ole " +
-                        "vuoroa — kuten lomalla yleensä — luodaan koko päivän tapahtuma.",
+                    when (state.type) {
+                        // Loma on työnantajan tiedossa etukäteen, joten lomapäiville ei
+                        // yleensä ole vuoroa lainkaan — koko päivän tapahtuma on siis
+                        // sääntö eikä poikkeus.
+                        DayType.VACATION ->
+                            "Lomapäiville luodaan koko päivän tapahtuma \"Vuosiloma\". " +
+                                "Jos jollekin päivälle sattuu olemaan vuoro, se jää " +
+                                "kalenteriin ja otsikkoon lisätään \"LOMA\"."
+                        else ->
+                            "Päivän vuoro jää kalenteriin kellonaikoineen, otsikkoon " +
+                                "lisätään merkintä: \"SAIRAS · Yö (y)\". Päiville joilla " +
+                                "ei ole vuoroa luodaan koko päivän tapahtuma."
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
