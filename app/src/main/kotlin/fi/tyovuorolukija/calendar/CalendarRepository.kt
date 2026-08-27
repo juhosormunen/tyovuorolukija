@@ -103,7 +103,13 @@ data class FoundEvent(
 const val APP_MARKER = "Lisätty Työvuorolukijalla."
 
 /** Mitä kalenterille tapahtui poissaoloa merkittäessä — tarvitaan merkinnän purkuun. */
-data class AbsenceMark(val eventId: Long?, val created: Boolean, val prevTitle: String?)
+data class AbsenceMark(
+    val eventId: Long?,
+    val created: Boolean,
+    val prevTitle: String?,
+    /** Kalenteri jossa tapahtuma oikeasti on — ei välttämättä se joka oli valittuna. */
+    val calendarId: Long?,
+)
 
 /** Tallennushetken muoto tapahtuman kuvauksessa. */
 private val SAVED_AT_FORMAT: DateTimeFormatter =
@@ -621,7 +627,9 @@ class CalendarRepository(private val context: Context) {
         date: LocalDate,
         type: DayType,
     ): AbsenceMark = withContext(Dispatchers.IO) {
-        val existing = dao.inRange(calendarId, date.toString(), date.toString()).firstOrNull()
+        // Haku päivällä, ei valitulla kalenterilla: vuoro on siinä kalenterissa johon
+        // se kirjoitettiin, ja valinta koskee vain uutta koko päivän tapahtumaa.
+        val existing = dao.byDate(date.toString())
 
         if (existing != null) {
             val snapshot = readEvent(existing.eventId)
@@ -643,6 +651,7 @@ class CalendarRepository(private val context: Context) {
                         eventId = existing.eventId,
                         created = false,
                         prevTitle = original,
+                        calendarId = existing.calendarId,
                     )
                 }
             }
@@ -669,7 +678,27 @@ class CalendarRepository(private val context: Context) {
             context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
         }.getOrNull()?.lastPathSegment?.toLongOrNull()
 
-        AbsenceMark(eventId = newId, created = newId != null, prevTitle = null)
+        AbsenceMark(
+            eventId = newId,
+            created = newId != null,
+            prevTitle = null,
+            calendarId = calendarId,
+        )
+    }
+
+    /**
+     * Kalenteri jota poissaolomerkintä oletuksena käyttää.
+     *
+     * Muistettu valinta ensin, mutta jos sitä ei ole — esimerkiksi päivitettäessä
+     * versiosta joka ei vielä muistanut valintaa — käytetään sitä kalenteria johon
+     * vuoroja on oikeasti kirjoitettu. Listan ensimmäinen olisi mielivaltainen.
+     */
+    suspend fun preferredCalendarId(
+        remembered: Long?,
+        available: List<CalendarInfo>,
+    ): Long? = withContext(Dispatchers.IO) {
+        fun usable(id: Long?) = id?.takeIf { c -> available.any { it.id == c } }
+        usable(remembered) ?: usable(dao.mostUsedCalendarId()) ?: available.firstOrNull()?.id
     }
 
     /**
@@ -696,9 +725,7 @@ class CalendarRepository(private val context: Context) {
         // Tapahtuma on voitu luoda uudestaan jakson uudelleenskannauksessa, jolloin
         // tallennettu id on vanhentunut. Haetaan silloin päivän nykyinen tapahtuma.
         val target = eventId
-            ?: calendarId?.let {
-                dao.inRange(it, date.toString(), date.toString()).firstOrNull()?.eventId
-            }
+            ?: dao.byDate(date.toString())?.eventId
             ?: return@withContext false
         val title = prevTitle ?: fallbackTitle ?: return@withContext false
         val uri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, target)

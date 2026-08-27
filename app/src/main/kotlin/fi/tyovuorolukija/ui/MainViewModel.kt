@@ -573,13 +573,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         )
         viewModelScope.launch {
             val list = runCatching { calendars.writableCalendars() }.getOrDefault(emptyList())
-            val remembered = paySettings.lastCalendarId()
+            val preferred = runCatching {
+                calendars.preferredCalendarId(paySettings.lastCalendarId(), list)
+            }.getOrNull()
             updateAbsence { current ->
-                current.copy(
-                    calendars = list,
-                    selectedCalendarId = remembered?.takeIf { id -> list.any { it.id == id } }
-                        ?: list.firstOrNull()?.id,
-                )
+                current.copy(calendars = list, selectedCalendarId = preferred)
             }
             refreshAbsenceList()
         }
@@ -643,6 +641,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         var marked = 0
         var cleared = 0
         var calendarWrites = 0
+        var renamedEvents = 0
+        var createdEvents = 0
         val storedDays = runCatching { history.days() }.getOrDefault(emptyList())
 
         for (date in dates) {
@@ -662,7 +662,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 history.clearAbsence(date)
                 cleared++
             } else {
-                if (existing?.dayType == type) continue
+                // Jo merkittyäkään päivää ei ohiteta: uudelleenmerkintä on tapa korjata
+                // kalenteri, jos tapahtuma on aiemmin syntynyt väärään muotoon.
                 // Vanha merkintä puretaan kalenterista ensin, jotta tyypin vaihto
                 // (sairausloma → loma) ei jätä väärää otsikkoa roikkumaan.
                 existing?.let {
@@ -673,13 +674,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     )
                 }
                 val mark = calendarId?.let { calendars.markAbsence(it, date, type) }
-                if (mark?.eventId != null) calendarWrites++
+                if (mark?.eventId != null) {
+                    if (mark.created) createdEvents++ else renamedEvents++
+                }
                 history.saveAbsence(
                     AbsenceDay(
                         date = date.toString(),
                         type = type.name,
                         markedAt = System.currentTimeMillis(),
-                        calendarId = calendarId,
+                        // Mark kertoo missä kalenterissa tapahtuma oikeasti on; se voi
+                        // olla eri kuin valittu, jos päivällä oli jo vuoro.
+                        calendarId = mark?.calendarId ?: calendarId,
                         eventId = mark?.eventId,
                         eventCreated = mark?.created ?: false,
                         prevTitle = mark?.prevTitle ?: existing?.prevTitle,
@@ -697,7 +702,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 cleared > 0 -> append("Poistettu merkintä $cleared päivältä.")
                 else -> append("Ei muutettavaa.")
             }
-            if (calendarWrites > 0) append(" Kalenteriin päivitetty $calendarWrites tapahtumaa.")
+            if (renamedEvents > 0) append(" Merkitty $renamedEvents vuoron otsikkoon.")
+            if (createdEvents > 0) {
+                append(" Luotu $createdEvents koko päivän tapahtumaa päiville joilla ei ollut vuoroa.")
+            }
+            if (calendarWrites > 0) append(" Palautettu $calendarWrites tapahtumaa kalenterissa.")
             recompute?.let {
                 if (it.periods > 0) append(" Laskettu ${it.periods} jakson luvut uudelleen.")
                 if (it.incompleteDays > 0) {

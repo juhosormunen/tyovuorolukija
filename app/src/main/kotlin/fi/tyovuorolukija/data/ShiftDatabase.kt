@@ -271,6 +271,25 @@ interface SyncedShiftDao {
     @Query("SELECT * FROM synced_shifts WHERE calendarId = :calendarId AND localDate BETWEEN :from AND :to")
     suspend fun inRange(calendarId: Long, from: String, to: String): List<SyncedShift>
 
+    /**
+     * Päivän vuoro **mistä tahansa kalenterista**.
+     *
+     * Poissaoloa merkittäessä ei voi rajata valittuun kalenteriin: käyttäjä valitsee
+     * kalenterin sitä varten että uusi tapahtuma menisi oikeaan paikkaan, mutta jo
+     * olemassa oleva vuoro on siinä kalenterissa johon se aikanaan kirjoitettiin.
+     * Rajaus valittuun kalenteriin sai merkinnän luulemaan ettei vuoroa ole, jolloin
+     * vuoron viereen syntyi turha koko päivän tapahtuma.
+     */
+    @Query("SELECT * FROM synced_shifts WHERE localDate = :date ORDER BY startMillis LIMIT 1")
+    suspend fun byDate(date: String): SyncedShift?
+
+    /** Kalenteri johon sovellus on kirjoittanut eniten vuoroja. Käytetään oletukseksi. */
+    @Query(
+        "SELECT calendarId FROM synced_shifts GROUP BY calendarId " +
+            "ORDER BY COUNT(*) DESC LIMIT 1"
+    )
+    suspend fun mostUsedCalendarId(): Long?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(shift: SyncedShift)
 
