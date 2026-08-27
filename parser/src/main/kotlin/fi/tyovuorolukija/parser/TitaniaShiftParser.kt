@@ -37,8 +37,14 @@ data class Shift(
     val end: LocalDateTime,
     val confidence: Confidence,
     val source: String,
+    /**
+     * Korvaava otsikko kalenteritapahtumalle. Käytetään kun päivä on merkitty
+     * poissaoloksi (sairausloma, vuosiloma): vuoro oli suunniteltu, mutta sitä ei
+     * tehty, joten kalenterissa on parempi lukea syy kuin vuorotyyppi.
+     */
+    val titleOverride: String? = null,
 ) {
-    val title: String get() = ShiftCodes.title(code)
+    val title: String get() = titleOverride ?: ShiftCodes.title(code)
     val date: LocalDate get() = start.toLocalDate()
 
     /** Kesto minuutteina paikallisessa ajassa (ei huomioi DST:tä — ks. ShiftTimes.kt). */

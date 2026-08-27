@@ -28,6 +28,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -139,6 +140,7 @@ fun ReviewScreen(
                     form = state.payForm,
                     printoutPartTime = state.printoutPartTime,
                     onFormChange = onPayFormChange,
+                    absenceCount = state.absenceCount,
                 )
             }
 
@@ -292,7 +294,13 @@ private fun ShiftRowCard(row: ShiftRow, onChange: ((ShiftRow) -> ShiftRow) -> Un
                 )
                 Column(Modifier.weight(1f)) {
                     Text(
-                        ShiftCodes.title(row.code.ifBlank { null }),
+                        if (row.dayType.countsAsWork) {
+                            ShiftCodes.title(row.code.ifBlank { null })
+                        } else {
+                            // Poissaolopäivällä vuorotyyppi on menettänyt merkityksensä:
+                            // vuoro oli suunniteltu, mutta sitä ei tehty.
+                            row.dayType.calendarTitle.orEmpty()
+                        },
                         style = MaterialTheme.typography.titleMedium,
                     )
                     Text(
@@ -338,6 +346,30 @@ private fun ShiftRowCard(row: ShiftRow, onChange: ((ShiftRow) -> ShiftRow) -> Un
                         singleLine = true,
                         textStyle = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.weight(1f),
+                    )
+                }
+
+                // Poissaolomerkintä. Päivä pysyy kalenterissa (vuoro oli olemassa),
+                // mutta se ei kerrytä työaikakorvauksia — ks. DayType.
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    DayType.entries.forEach { type ->
+                        FilterChip(
+                            selected = row.dayType == type,
+                            onClick = { onChange { r -> r.copy(dayType = type) } },
+                            label = {
+                                Text(type.label, style = MaterialTheme.typography.labelMedium)
+                            },
+                        )
+                    }
+                }
+                if (!row.dayType.countsAsWork) {
+                    Text(
+                        "Ei ilta-, yö-, lauantai- eikä sunnuntaikorvausta. " +
+                            "Peruspalkka juoksee normaalisti.",
+                        style = MaterialTheme.typography.bodySmall,
                     )
                 }
             }

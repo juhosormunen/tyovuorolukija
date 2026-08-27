@@ -40,6 +40,21 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
+/**
+ * Päivän luonne. Poissaolopäivä oli suunniteltu vuoroksi, mutta sitä ei tehty.
+ *
+ * Palkan kannalta ero on olennainen: poissaolon ajalta maksetaan varsinainen palkka,
+ * eikä varsinainen palkka sisällä työaikakorvauksia (KVTES palkkausluku 5 §). Niinpä
+ * poissaolopäivän tunneista ei kerry ilta-, yö-, lauantai- eikä sunnuntaikorvausta.
+ */
+enum class DayType(val label: String, val calendarTitle: String?) {
+    WORK("Työvuoro", null),
+    SICK("Sairaus", "Sairausloma"),
+    VACATION("Loma", "Vuosiloma");
+
+    val countsAsWork: Boolean get() = this == WORK
+}
+
 /** Muokattava rivi vahvistusnäkymässä. Ajat ovat tekstiä, jotta käyttäjä voi korjata OCR:n. */
 data class ShiftRow(
     val key: Int,
@@ -49,6 +64,7 @@ data class ShiftRow(
     val include: Boolean,
     val flagged: Boolean,
     val source: String,
+    val dayType: DayType = DayType.WORK,
 ) {
     val startError: Boolean get() = parseOrNull(startText) == null
     val endError: Boolean get() = parseOrNull(endText) == null
@@ -65,6 +81,7 @@ data class ShiftRow(
             end = end,
             confidence = if (flagged) Confidence.REVIEW else Confidence.OK,
             source = source,
+            titleOverride = dayType.calendarTitle,
         )
     }
 
@@ -153,17 +170,29 @@ sealed interface UiState {
         val validShifts: List<Shift> get() = rows.mapNotNull { it.toShift() }
 
         /**
+         * Vuorot joista kertyy työaikakorvauksia. Poissaolopäivät jätetään pois:
+         * niiltä maksetaan varsinainen palkka, joka ei sisällä korvauksia.
+         */
+        val workedShifts: List<Shift>
+            get() = rows.filter { it.dayType.countsAsWork }.mapNotNull { it.toShift() }
+
+        val absenceCount: Int get() = rows.count { it.include && !it.dayType.countsAsWork }
+
+        fun absenceDates(type: DayType): List<LocalDate> =
+            rows.filter { it.dayType == type }.mapNotNull { it.toShift()?.date }
+
+        /**
          * Vertailu lasketaan käyttäjän muokkaamista riveistä, ei alkuperäisestä
          * tunnistuksesta — silloin vuoroajan korjaus näkyy heti tarkistuksessa.
          */
         val comparison: ComparisonResult
-            get() = PayCalculator.compare(validShifts, employerSummary)
+            get() = PayCalculator.compare(workedShifts, employerSummary)
 
         val payBreakdown: PayBreakdown?
             get() {
                 val salary = payForm.effectiveMonthlySalary ?: return null
                 return PayCalculator.calculate(
-                    validShifts,
+                    workedShifts,
                     employerSummary,
                     PayInput(
                         monthlySalary = salary,
@@ -639,12 +668,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         history.record(
                             batchId = summary.batchId,
                             range = range,
-                            shifts = review.validShifts,
+                            shifts = review.workedShifts,
                             freeDays = review.freeDays,
                             employer = review.employerSummary,
                             comparison = review.comparison,
                             pay = review.payBreakdown,
                             scannedAt = System.currentTimeMillis(),
+                            sickDays = review.absenceDates(DayType.SICK),
+                            vacationDays = review.absenceDates(DayType.VACATION),
                         )
                     }
                     val first = review.validShifts.minByOrNull { it.start }

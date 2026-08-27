@@ -101,8 +101,12 @@ private fun DayCell(
     inRange: Boolean,
     modifier: Modifier = Modifier,
 ) {
+    // Poissaolopäivä ei ole vuoro eikä vapaapäivä: vuoro oli suunniteltu mutta jäi
+    // tekemättä. Vaaleampi harmaa erottaa sen vapaapäivästä ilman uutta kategorista väriä.
+    val isAbsence = day?.code?.endsWith(ABSENCE_SUFFIX) == true
     val background = when {
         day == null -> Color.Transparent
+        isAbsence -> ShiftColors.Free.copy(alpha = 0.22f)
         day.isFree -> ShiftColors.Free.copy(alpha = 0.45f)
         else -> ShiftColors.forCode(day.code)
     }
@@ -133,7 +137,7 @@ private fun DayCell(
                 else CellInk,
             )
             // Koodi kirjaimena: väri ei saa olla ainoa tunniste.
-            day?.code?.let {
+            day?.code?.removeSuffix(ABSENCE_SUFFIX)?.let {
                 Text(
                     it.uppercase(),
                     style = MaterialTheme.typography.labelSmall,
@@ -144,6 +148,9 @@ private fun DayCell(
         }
     }
 }
+
+/** Poissaolokoodien pääte (`S!`, `L!`); ks. ShiftTypeCounts. Ei näytetä käyttäjälle. */
+private const val ABSENCE_SUFFIX = "!"
 
 /** Tumma muste vaaleilla vuoroväreillä — sama sävy kaikissa, jotta ruudukko on rauhallinen. */
 private val CellInk = Color(0xFF16302A)

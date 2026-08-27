@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -463,6 +464,20 @@ private fun ShiftTypeCard(counts: fi.tyovuorolukija.data.ShiftTypeCounts) {
             TypeTile("Ilta", counts.evening, ShiftColors.Evening, Modifier.weight(1f))
             TypeTile("Yö", counts.night, ShiftColors.Night, Modifier.weight(1f))
             TypeTile("Muu", counts.other, ShiftColors.Other, Modifier.weight(1f))
+        }
+        // Poissaolot omalla rivillään, ja vain jos niitä on. Ne eivät ole vuorotyyppejä
+        // vaan tekemättä jääneitä vuoroja, joten ne eivät kuulu samaan riviin.
+        if (counts.absences > 0) {
+            Text(
+                "Poissaolot — ei työaikakorvauksia, peruspalkka jatkuu.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TypeTile("Sairaus", counts.sick, ShiftColors.Other, Modifier.weight(1f))
+                TypeTile("Loma", counts.vacation, ShiftColors.Other, Modifier.weight(1f))
+                Spacer(Modifier.weight(2f))
+            }
         }
     }
 }

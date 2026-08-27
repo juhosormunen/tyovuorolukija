@@ -13,12 +13,16 @@ vuorot puhelimen kalenteriin.
 2. Tarkista tunnistetut vuorot. Punaisella merkityt vaativat huomiota — joko
    suunnitelma ja toteutunut poikkesivat, tai vuorokoodin merkitystä ei ole varmistettu.
    Aikoja voi muokata suoraan (muoto `pp.kk.vvvv tt:mm`), ja rivin voi jättää pois.
-3. Katso palkkaosio: sovellus laskee ilta-, yö-, lauantai- ja sunnuntaityötunnit
+3. Merkitse tarvittaessa päivä **sairaslomaksi tai lomaksi**. Poissaolopäivä menee
+   kalenteriin omalla otsikollaan, mutta siitä ei lasketa ilta-, yö-, lauantai- eikä
+   sunnuntaikorvausta: poissaoloajalta maksetaan varsinainen palkka, johon
+   työaikakorvaukset eivät kuulu (KVTES palkkausluku 5 §).
+4. Katso palkkaosio: sovellus laskee ilta-, yö-, lauantai- ja sunnuntaityötunnit
    itsenäisesti TES:n säännöistä ja vertaa niitä tulosteen omaan erittelyyn.
    Syöttämällä kuukausipalkan (ja veroprosentin) saat brutto- ja nettopalkan lisineen.
-4. Valitse kalenteri ja tallenna. Tallennuksen voi kumota — painike näkyy sekä heti
+5. Valitse kalenteri ja tallenna. Tallennuksen voi kumota — painike näkyy sekä heti
    tallennuksen jälkeen että aloitusnäkymän alalaidassa.
-5. Tallennetut jaksot kertyvät **historiaan** (aloitusnäkymä → "Historia ja tilastot"):
+6. Tallennetut jaksot kertyvät **historiaan** (aloitusnäkymä → "Historia ja tilastot"):
    työtunnit ja lisätunnit jaksoittain, arvioitu palkka, yövuorojen määrä, lyhimmät
    lepoajat ja vuosikertymä. Kumottu tallennus poistuu myös historiasta.
 
@@ -26,7 +30,9 @@ Vapaapäiviä ei kirjoiteta kalenteriin, mutta ne huomioidaan: jos päivä on ai
 ollut työvuoro ja muuttuu vapaaksi, tapahtuma poistetaan.
 
 Palkkalaskelma on suuntaa-antava eikä huomioi luontoisetuja, lomarahaa, kertaeriä
-eikä verokortin tulorajaa. Työaikakorvausten perusteet ja lähteet:
+eikä verokortin tulorajaa. Sairaus- ja loma-ajan palkkaan tulee lisäksi korotus
+(vuosilomaluku 13 § 3 mom, enintään 35 %), joka lasketaan edellisen
+lomanmääräytymisvuoden korvauskertymästä — sitä sovellus ei näe eikä siksi laske. Työaikakorvausten perusteet ja lähteet:
 ks. [CLAUDE.md](CLAUDE.md#työehtosopimus).
 
 ## Kääntäminen

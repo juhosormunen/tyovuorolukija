@@ -83,6 +83,43 @@ fun TesScreen(form: PayForm, onBack: () -> Unit, modifier: Modifier = Modifier) 
         }
 
         item {
+            Section("Sairausloma ja vuosiloma") {
+                Bullet(
+                    "Poissaolon ajalta maksetaan \"varsinainen palkka\": tasopalkka, " +
+                        "henkilökohtainen lisä, työkokemuslisä ja vastaavat. " +
+                        "Työaikakorvaukset eivät kuulu siihen (KVTES palkkausluku 5 §) — " +
+                        "siksi sovellus ei laske sairaus- tai lomapäivältä ilta-, yö-, " +
+                        "lauantai- eikä sunnuntaikorvausta."
+                )
+                Bullet(
+                    "Sairausloma: varsinainen palkka 60 kalenteripäivältä, sen jälkeen " +
+                        "kaksi kolmasosaa seuraavilta 120 päivältä (KVTES V luku 2 §). " +
+                        "Jos palvelussuhde on kestänyt alle 60 kalenteripäivää, " +
+                        "palkallinen jakso on 14 kalenteripäivää."
+                )
+                Bullet(
+                    "Vuosiloma: varsinainen kuukausipalkka (vuosilomaluku 13 § 1 mom)."
+                )
+                Bullet(
+                    "Molempiin tulee korotus, jota sovellus EI laske. Se on edellisen " +
+                        "lomanmääräytymisvuoden (1.4.–31.3.) sunnuntai-, ilta- ja " +
+                        "yötyökorvausten osuus saman vuoden varsinaisesta palkasta, " +
+                        "enintään 35 % (vuosilomaluku 13 § 3 mom). Sairausajan palkassa " +
+                        "huomioidaan vain sunnuntaityön osuus. Laskeminen vaatisi " +
+                        "kokonaisen vuoden tiedot, joita sovelluksella ei ole."
+                )
+                Bullet(
+                    "Lauantaityökorvaus ei ole korotuksen laskennassa mukana — " +
+                        "vain sunnuntai-, ilta- ja yötyö."
+                )
+                Bullet(
+                    "Merkinnän tekee käyttäjä itse tarkistusnäkymässä (Työvuoro / " +
+                        "Sairaus / Loma). Tuloste ei kerro poissaoloja sovellukselle."
+                )
+            }
+        }
+
+        item {
             Section("Mitä laskenta ei kata") {
                 Bullet(
                     "Raha vai vapaa. Korvaukset voi ottaa myös vapaana (yötyössä 24 min " +
@@ -100,7 +137,12 @@ fun TesScreen(form: PayForm, onBack: () -> Unit, modifier: Modifier = Modifier) 
                         "vaihtoehtoinen, ei päällekkäinen."
                 )
                 Bullet(
-                    "Lomaraha, luontoisedut, kertaerät ja verokortin tuloraja."
+                    "Lomaraha (4–6 % heinäkuun varsinaisesta kuukausipalkasta kultakin " +
+                        "täydeltä lomanmääräytymiskuukaudelta) sekä poissaoloajan palkan " +
+                        "korotus — ks. edellinen osio."
+                )
+                Bullet(
+                    "Luontoisedut, kertaerät ja verokortin tuloraja."
                 )
             }
         }
@@ -117,6 +159,11 @@ fun TesScreen(form: PayForm, onBack: () -> Unit, modifier: Modifier = Modifier) 
                         SOURCE_URL,
                         style = MaterialTheme.typography.bodySmall,
                         fontFamily = FontFamily.Monospace,
+                    )
+                    Text(
+                        "Sairaus- ja vuosilomamääräykset: KVTES 2025–2028, " +
+                            "IV ja V luku (kt.fi).",
+                        style = MaterialTheme.typography.bodySmall,
                     )
                     Text(
                         "Sopimuskausi vaihtuu 29.2.2028. Tarkista prosentit silloin " +

@@ -136,6 +136,41 @@ Huomioitavaa:
   Korjaus vaatii sarakkeiden erottelun x-koordinaatin perusteella, kuten
   käsinkirjoitetun sarakkeen suodatuksessa.
 
+### Poissaolot (sairausloma, vuosiloma)
+
+Lähde: **KVTES 2025–2028**, IV luku (vuosiloma) ja V luku (virka-/työvapaa).
+SOTE-sopimuksessa ei ole näitä lukuja lainkaan.
+
+Käyttäjä merkitsee päivän tarkistusnäkymässä (`DayType`: `WORK` / `SICK` / `VACATION`).
+Tuloste ei kerro poissaoloja — Titania näyttää suunnitellun vuoron.
+
+- **Varsinainen palkka** (palkkausluku 5 §) = tasopalkka/tasolisä, henkilökohtainen lisä,
+  työkokemus-/määrävuosilisä, syrjäseutu-, kieli- ja rekrytointilisä sekä
+  luottamusedustajan korvaus. **Työaikakorvaukset eivät kuulu siihen.** Tästä seuraa
+  koko toteutus: poissaolopäivä ei kerrytä ilta-, yö-, lauantai- eikä sunnuntaituntia
+  (`Review.workedShifts` suodattaa ne pois ennen `SupplementHours`ia ja `PayCalculator`ia).
+- **Sairausloma** (V luku 2 §): varsinainen palkka 60 kalenteripäivältä, sitten 2/3
+  seuraavilta 120:ltä, harkinnanvaraisesti 2/3 enintään 185 päivään. Alle 60 päivän
+  palvelussuhteessa palkallinen jakso on 14 kalenteripäivää.
+- **Vuosiloma** (13 § 1 mom): varsinainen kuukausipalkka.
+- **Korotusprosentti, jota sovellus ei laske** (13 § 3 mom): edellisen
+  lomanmääräytymisvuoden (1.4.–31.3.) **sunnuntai-, ilta- ja yötyön** rahakorvausten
+  osuus saman vuoden varsinaisesta palkasta, **enintään 35 %**. Sairausajan palkassa
+  huomioidaan vain sunnuntaityön osuus. **Lauantaityökorvaus ei ole listalla.**
+  Laskeminen vaatisi kokonaisen lomanmääräytymisvuoden tiedot; sovellus näkee vain
+  skannatut jaksot, joten se kertoo puutteesta eikä arvaa.
+- **Lomarahaa** (6 / 5 / 4 % heinäkuun varsinaisesta kuukausipalkasta täydeltä
+  lomanmääräytymiskuukaudelta) ei lasketa.
+
+Poissaolopäivä kirjoitetaan silti kalenteriin — vuoro oli suunniteltu ja päivä kuuluu
+jaksoon — mutta otsikko korvataan (`Shift.titleOverride` → "Sairausloma" / "Vuosiloma").
+Historiassa ne tallentuvat `ScannedDay`-riveiksi koodilla `S!` / `L!` ja nolla minuutilla:
+näkyvät kalenteriruudukossa, eivät kerrytä tunteja. Huutomerkki erottaa ne oikeista
+vuorokoodeista eikä näy käyttöliittymässä.
+
+**Merkintä muuttaa tarkistuksen tuloksen.** Työnantajan erittely sisältää poissaolopäivät
+omalla logiikallaan, joten poikkeama on odotettu — se on tieto, ei vika.
+
 ### Validointi
 
 `PayCalculatorTest` ajaa esimerkkitulosteen läpi ja vaatii että itsenäisesti lasketut
@@ -173,6 +208,11 @@ tunnit eivät täsmäisi.
       sitten 100 %.
 - [ ] **Vuorotyölisä** (19 § 4 mom) — sulkee pois ilta-/yökorvauksen, joten se pitää
       toteuttaa vaihtoehtona eikä lisänä.
+- [ ] **Poissaoloajan palkan korotus** (vuosilomaluku 13 § 3 mom, enintään 35 %) ja
+      **lomaraha**. Molemmat vaativat lomanmääräytymisvuoden kertymän. Kun historiaa on
+      vuosi, `YearSummary` voisi periaatteessa antaa osoittajan (sunnuntai + ilta + yö)
+      ja nimittäjän (varsinainen palkka) — mutta vain skannatuista jaksoista, joten luku
+      olisi liian pieni jos jaksoja puuttuu. Vaatii vähintään varoituksen kattavuudesta.
 - [ ] **Työntekijän vähennysprosentit** (työeläke, työttömyysvakuutus) ovat oletuksia ja
       muuttuvat vuosittain; työeläkemaksu on korkeampi 53–62-vuotiaalla. Ne ovat
       muokattavissa asetuksista, mutta automaattinen päivitys puuttuu.

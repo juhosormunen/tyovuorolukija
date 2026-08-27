@@ -42,21 +42,31 @@ data class ShiftTypeCounts(
     val evening: Int = 0,
     val night: Int = 0,
     val other: Int = 0,
+    val sick: Int = 0,
+    val vacation: Int = 0,
 ) {
+    /** Vain tehdyt vuorot. Poissaolot lasketaan erikseen, ei tähän. */
     val total: Int get() = morning + evening + night + other
+    val absences: Int get() = sick + vacation
 
     companion object {
+        /** Poissaolopäivien koodit [ScannedDay]-riveillä. */
+        const val SICK_CODE = "S!"
+        const val VACATION_CODE = "L!"
+
         fun from(days: List<ScannedDay>): ShiftTypeCounts {
-            var m = 0; var e = 0; var n = 0; var o = 0
+            var m = 0; var e = 0; var n = 0; var o = 0; var s = 0; var v = 0
             days.filterNot { it.isFree }.forEach { day ->
                 when (day.code?.uppercase()) {
+                    SICK_CODE -> s++
+                    VACATION_CODE -> v++
                     "A" -> m++
                     "I" -> e++
                     "Y" -> n++
                     else -> o++
                 }
             }
-            return ShiftTypeCounts(m, e, n, o)
+            return ShiftTypeCounts(m, e, n, o, s, v)
         }
     }
 }
@@ -72,6 +82,19 @@ data class YearSummary(
     val sundayMinutes: Long,
     val grossCents: Long?,
     val netCents: Long?,
+)
+
+/**
+ * Poissaolopäivä kalenterinäkymään. Minuutit ovat nolla: päivää ei tehty, joten se ei
+ * kuulu jakson työtunteihin. Se ei ole myöskään vapaapäivä (`isFree`), koska vuoro oli
+ * suunniteltu — ero näkyy tilastoissa.
+ */
+private fun absenceDay(periodKey: String, date: LocalDate, code: String) = ScannedDay(
+    periodKey = periodKey,
+    date = date.toString(),
+    code = code,
+    isFree = false,
+    minutes = 0,
 )
 
 class HistoryRepository(context: Context) {
@@ -142,6 +165,13 @@ class HistoryRepository(context: Context) {
         comparison: ComparisonResult,
         pay: PayBreakdown?,
         scannedAt: Long,
+        /**
+         * Sairaus- ja lomapäiviksi merkityt vuorot. Ne eivät kerrytä työaikakorvauksia
+         * eivätkä tunteja, mutta ne näkyvät kalenterinäkymässä — muuten päivä katoaisi
+         * historiasta kokonaan, vaikka se on osa jaksoa.
+         */
+        sickDays: List<LocalDate> = emptyList(),
+        vacationDays: List<LocalDate> = emptyList(),
     ) = withContext(Dispatchers.IO) {
         val supplements = SupplementHours.of(shifts)
         val rhythm = ShiftRhythm.of(shifts, freeDays)
@@ -167,7 +197,8 @@ class HistoryRepository(context: Context) {
                     isFree = true,
                     minutes = 0,
                 )
-            }
+            } + sickDays.map { absenceDay(periodKey, it, ShiftTypeCounts.SICK_CODE) }
+                + vacationDays.map { absenceDay(periodKey, it, ShiftTypeCounts.VACATION_CODE) }
         )
 
         dao.upsert(
