@@ -4,6 +4,15 @@ package fi.tyovuorolukija.parser
  * Testifixturet. [EXAMPLE_PRINTOUT] on litteroitu oikeasta valokuvasta
  * (Pirha / Titania, jakso 24.08.–13.09., työaikaprosentti 80).
  *
+ * **Tunnistetiedot on korvattu paikanpitäjillä.** Nimi, henkilönumero, osasto ja
+ * tulosteen tunniste ovat keksittyjä; kellonajat ja vuorokoodit ovat aitoja, koska
+ * juuri ne testataan. Otsikkolohkon rivit menevät parserissa `ignoredLines`iin,
+ * joten niiden sisällöllä ei ole merkitystä testeille — mutta rivien **muoto** on,
+ * joten säilytä se jos lisäät uusia.
+ *
+ * Älä koskaan litteroi tänne oikeaa nimeä tai henkilönumeroa: tämä repo on julkinen,
+ * ja työvuorolista kertoo nimettynä missä ihminen on ollut minäkin yönä.
+ *
  * Kun keräät lisää valokuvia, litteroi jokainen tänne omaksi vakiokseen ja
  * kirjoita sille testi. Formaatti vaihtelee todennäköisesti enemmän kuin uskoisi.
  */
