@@ -137,8 +137,9 @@ fun AbsenceScreen(
                     Text("Merkitse myös kalenteriin")
                 }
                 Text(
-                    "Päivän vuoro nimetään uudelleen. Jos päivälle ei ole vuoroa — " +
-                        "kuten lomalla yleensä — luodaan koko päivän tapahtuma.",
+                    "Vuoro jää kalenteriin kellonaikoineen, otsikkoon lisätään " +
+                        "merkintä (esim. \"SAIRAS · Yö (y)\"). Jos päivälle ei ole " +
+                        "vuoroa — kuten lomalla yleensä — luodaan koko päivän tapahtuma.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

@@ -31,7 +31,8 @@ päivän merkitset napauttamalla sitä historian kalenteriruudukossa; pidemmät 
 joille ei ole vuoroa aloitusnäkymän **Poissaolot**-painikkeesta. Poissaolopäivästä ei lasketa
 ilta-, yö-, lauantai- eikä sunnuntaikorvausta, koska poissaoloajalta maksetaan varsinainen
 palkka, johon työaikakorvaukset eivät kuulu (KVTES palkkausluku 5 §). Jaksojen luvut
-päivittyvät heti, ja kalenterimerkintä nimetään uudelleen.
+päivittyvät heti. Vuoro jää kalenteriin kellonaikoineen; otsikkoon tulee vain merkintä
+(`SAIRAS · Yö (y)`), joka poistuu kun merkinnän purkaa.
 
 Palkkalaskelma on suuntaa-antava eikä huomioi luontoisetuja, lomarahaa, kertaeriä
 eikä verokortin tulorajaa. Sairaus- ja loma-ajan palkkaan tulee lisäksi korotus

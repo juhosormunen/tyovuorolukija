@@ -5,6 +5,7 @@ import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
 import android.provider.CalendarContract
+import fi.tyovuorolukija.data.DayType
 import fi.tyovuorolukija.data.ShiftDatabase
 import fi.tyovuorolukija.data.SyncAction
 import fi.tyovuorolukija.data.SyncBatch
@@ -618,7 +619,7 @@ class CalendarRepository(private val context: Context) {
     suspend fun markAbsence(
         calendarId: Long,
         date: LocalDate,
-        title: String,
+        type: DayType,
     ): AbsenceMark = withContext(Dispatchers.IO) {
         val existing = dao.inRange(calendarId, date.toString(), date.toString()).firstOrNull()
 
@@ -628,8 +629,11 @@ class CalendarRepository(private val context: Context) {
                 val uri = ContentUris.withAppendedId(
                     CalendarContract.Events.CONTENT_URI, existing.eventId,
                 )
+                // Kalenterista luettu otsikko, ei oma kirjanpitomme: käyttäjä on voinut
+                // nimetä tapahtuman itse, ja purun pitää palauttaa juuri se.
+                val original = DayType.stripPrefix(snapshot.title ?: existing.title)
                 val values = ContentValues().apply {
-                    put(CalendarContract.Events.TITLE, title)
+                    put(CalendarContract.Events.TITLE, type.annotate(original))
                 }
                 val rows = runCatching {
                     context.contentResolver.update(uri, values, null, null)
@@ -638,9 +642,7 @@ class CalendarRepository(private val context: Context) {
                     return@withContext AbsenceMark(
                         eventId = existing.eventId,
                         created = false,
-                        // Kalenterista luettu otsikko, ei oma kirjanpitomme: käyttäjä on
-                        // voinut nimetä tapahtuman itse, ja purun pitää palauttaa se.
-                        prevTitle = snapshot.title ?: existing.title,
+                        prevTitle = original,
                     )
                 }
             }
@@ -653,7 +655,7 @@ class CalendarRepository(private val context: Context) {
             .toInstant().toEpochMilli()
         val values = ContentValues().apply {
             put(CalendarContract.Events.CALENDAR_ID, calendarId)
-            put(CalendarContract.Events.TITLE, title)
+            put(CalendarContract.Events.TITLE, type.calendarTitle.orEmpty())
             put(CalendarContract.Events.ALL_DAY, 1)
             put(CalendarContract.Events.DTSTART, startUtc)
             put(CalendarContract.Events.DTEND, endUtc)

@@ -183,11 +183,15 @@ Merkintä tekee kolme asiaa yhdessä (`MainViewModel.applyAbsence`), jotta ne ei
 joutua eri tahtiin:
 
 1. **Kanta.** `absence_days`-rivi.
-2. **Kalenteri.** Jos päivälle on vuoro, tapahtuman otsikko kirjoitetaan päälle ja
-   alkuperäinen otetaan talteen (`AbsenceDay.prevTitle`) — luetaan kalenterista, ei omasta
-   kirjanpidosta, koska käyttäjä on voinut nimetä tapahtuman itse. Jos vuoroa ei ole,
-   luodaan koko päivän tapahtuma ja `eventCreated` merkitään, jotta purku poistaa sen
-   eikä yritä palauttaa otsikkoa jota ei ollut.
+2. **Kalenteri.** Jos päivälle on vuoro, **se jää kalenteriin sellaisenaan** —
+   kellonajat, kesto ja vuorotyyppi säilyvät — ja otsikkoon lisätään vain etuliite:
+   `SAIRAS · Yö (y)`. Otsikon korvaaminen kokonaan hävittäisi tiedon siitä mikä vuoro
+   päivälle oli suunniteltu, ja juuri sitä tarvitaan merkintää purettaessa ja palkkaa
+   tarkistettaessa. Alkuperäinen otetaan talteen (`AbsenceDay.prevTitle`) **kalenterista
+   luettuna**, ei omasta kirjanpidosta, koska käyttäjä on voinut nimetä tapahtuman itse.
+   `DayType.stripPrefix` estää etuliitteiden kasautumisen kun laji vaihdetaan.
+   Jos vuoroa ei ole, luodaan koko päivän tapahtuma ja `eventCreated` merkitään, jotta
+   purku poistaa sen eikä yritä palauttaa otsikkoa jota ei ollut.
 3. **Uudelleenlaskenta.** `HistoryRepository.recompute` laskee kosketettujen jaksojen
    luvut uudestaan ilman poissaolopäiviä. Ilman tätä merkintä näkyisi tilastossa muttei
    palkassa.

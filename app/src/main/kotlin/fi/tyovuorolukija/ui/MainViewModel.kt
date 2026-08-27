@@ -667,9 +667,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         fallbackTitle = null,
                     )
                 }
-                val mark = calendarId?.let {
-                    calendars.markAbsence(it, date, type.calendarTitle.orEmpty())
-                }
+                val mark = calendarId?.let { calendars.markAbsence(it, date, type) }
                 if (mark?.eventId != null) calendarWrites++
                 history.saveAbsence(
                     AbsenceDay(
@@ -861,7 +859,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 .associateBy { it.date }
             val shiftsToWrite = review.validShifts.map { shift ->
                 val type = absent[shift.date.toString()]?.dayType ?: DayType.WORK
-                if (type.countsAsWork) shift else shift.copy(titleOverride = type.calendarTitle)
+                if (type.countsAsWork) shift else shift.copy(titleOverride = type.annotate(shift.title))
             }
 
             val result = runCatching {

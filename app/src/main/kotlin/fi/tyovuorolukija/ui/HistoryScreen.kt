@@ -113,7 +113,8 @@ fun HistoryScreen(
                     )
                     Text(
                         "Poissaolopäivästä ei lasketa ilta-, yö-, lauantai- eikä " +
-                            "sunnuntaikorvausta. Peruspalkka jatkuu.",
+                            "sunnuntaikorvausta. Peruspalkka jatkuu. Vuoro jää " +
+                            "kalenteriin, otsikkoon tulee merkintä.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
