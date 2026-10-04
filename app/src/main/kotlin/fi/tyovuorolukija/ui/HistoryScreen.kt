@@ -354,7 +354,7 @@ fun HistoryScreen(
             item {
                 ChartBlock(
                     title = "Arvioitu palkka jaksoittain",
-                    subtitle = "Peruspalkka ja työaikakorvaukset erikseen. " +
+                    subtitle = "Peruspalkka jakson päiviltä ja työaikakorvaukset erikseen. " +
                         "Näyttää kuinka suuri osa ansioista tulee lisistä.",
                 ) {
                     val payLabels = withPay.map {
@@ -369,7 +369,7 @@ fun HistoryScreen(
                         )
                         BarChart(
                             bars = withPay.mapIndexed { i, p ->
-                                val base = (p.monthlySalaryCents ?: 0L) / 100f
+                                val base = (p.basePayCents ?: 0L) / 100f
                                 val extra = (p.supplementsCents ?: 0L) / 100f
                                 Bar(
                                     payLabels[i],

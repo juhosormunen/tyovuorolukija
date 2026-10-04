@@ -26,6 +26,8 @@ import kotlin.math.abs
  *   - rivillä on sekä suunnitelma että toteutunut -> käytetään toteutunutta,
  *     ja jos ne eroavat, tapahtuma merkitään tarkistettavaksi
  *   - V = vapaapäivä
+ *   - päivä voi koostua peräkkäisistä osista eri koodeilla (R 1100-1200, K 1200-1430,
+ *     R 1430-2130) -> yhdistetään yhdeksi vuoroksi
  *   - yhteenveto-osio ("tunnit yhteensä" ->) jätetään huomiotta
  */
 
@@ -43,8 +45,13 @@ data class Shift(
      * tehty, joten kalenterissa on parempi lukea syy kuin vuorotyyppi.
      */
     val titleOverride: String? = null,
+    /**
+     * Muiden osien koodit, kun vuoro on koottu peräkkäisistä osista, esim. `K`
+     * kun työpäivän keskellä on koulutus. Pääkoodi ([code]) on se, jolla on pisin yhteiskesto.
+     */
+    val extraCodes: List<String> = emptyList(),
 ) {
-    val title: String get() = titleOverride ?: ShiftCodes.title(code)
+    val title: String get() = titleOverride ?: ShiftCodes.title(code, extraCodes)
     val date: LocalDate get() = start.toLocalDate()
 
     /** Kesto minuutteina paikallisessa ajassa (ei huomioi DST:tä — ks. ShiftTimes.kt). */
@@ -364,7 +371,8 @@ class TitaniaShiftParser(
         // tulevat väärin päin, yövuoron jatko jäisi löytymättä ja päätyisi
         // erilliseksi vuoroksi. Tämä on havaittu oikealla valokuvalla.
         val ordered = entries.sortedWith(compareBy({ it.date }, { it.start }))
-        val shifts = mergeNightShifts(ordered, warnings)
+        val shifts = mergeAdjacent(mergeNightShifts(ordered, warnings))
+        warnUnknownCodes(shifts, warnings)
         return ParseResult(
             shifts, freeDays, warnings, ignored, parseSummary(summaryLines), partTimePercent,
         )
@@ -473,6 +481,55 @@ class TitaniaShiftParser(
         }
         pending?.let { flush(it) }
         return out.sortedBy { it.start }
+    }
+
+    /**
+     * Yhdistää peräkkäiset osat, joissa edellinen päättyy täsmälleen kun seuraava
+     * alkaa, yhdeksi vuoroksi.
+     *
+     * Havaittu tulosteesta 05.10.–25.10.2026: `R 1100-1200`, `K 1200-1430`,
+     * `R 1430-2130` samana päivänä. Se on yksi työpäivä, jonka keskellä on koulutus.
+     * Kolmena kalenteritapahtumana se näytti kolmelta vuorolta. Työaikakorvauksiin
+     * yhdistäminen ei vaikuta, koska aikaväli on sama.
+     *
+     * Pääkoodiksi valitaan koodi, jolla on pisin yhteiskesto; muut jäävät [Shift.extraCodes]iin,
+     * jotta koulutus näkyy otsikossa eikä katoa.
+     */
+    private fun mergeAdjacent(shifts: List<Shift>): List<Shift> {
+        val groups = mutableListOf<MutableList<Shift>>()
+        for (s in shifts.sortedBy { it.start }) {
+            val last = groups.lastOrNull()
+            if (last != null && last.last().end == s.start) last += s else groups += mutableListOf(s)
+        }
+        return groups.map { parts ->
+            if (parts.size == 1) return@map parts[0]
+            // Pisin yhteiskesto voittaa: R 1 h + R 7 h on päivän luonne, K 2,5 h ei.
+            val mainKey = parts.groupBy { it.code?.uppercase() }
+                .maxBy { (_, v) -> v.sumOf { it.localMinutes } }.key
+            val mainCode = parts.first { it.code?.uppercase() == mainKey }.code
+            Shift(
+                code = mainCode,
+                start = parts.first().start,
+                end = parts.last().end,
+                confidence = if (parts.all { it.confidence == Confidence.OK }) Confidence.OK
+                else Confidence.REVIEW,
+                source = parts.joinToString(" | ") { it.source.trim() },
+                extraCodes = parts.mapNotNull { it.code }
+                    .filter { it.uppercase() != mainKey }
+                    .distinctBy { it.uppercase() },
+            )
+        }
+    }
+
+    /** Yksi varoitus per tuntematon koodi, ei per vuoro. */
+    private fun warnUnknownCodes(shifts: List<Shift>, warnings: MutableList<String>) {
+        (shifts.mapNotNull { it.code } + shifts.flatMap { it.extraCodes })
+            .filter { ShiftCodes.isUnknown(it) }
+            .groupBy { it.uppercase() }
+            .forEach { (code, hits) ->
+                warnings += "Vuorokoodin $code merkitys ei ole tiedossa (${hits.size} kpl). " +
+                    "Kellonajat on luettu normaalisti; vain nimi on yleinen \"Vuoro ($code)\"."
+            }
     }
 
     /**

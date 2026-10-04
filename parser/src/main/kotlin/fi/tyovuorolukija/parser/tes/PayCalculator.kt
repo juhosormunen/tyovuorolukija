@@ -4,6 +4,8 @@ import fi.tyovuorolukija.parser.EmployerSummary
 import fi.tyovuorolukija.parser.Shift
 import java.math.BigDecimal
 import java.math.RoundingMode
+import java.time.LocalDate
+import java.time.YearMonth
 
 /**
  * Palkkalaskennan syötteet. Kaikki tulee käyttäjältä — sovellus ei tiedä palkkaa.
@@ -38,7 +40,12 @@ data class PayBreakdown(
     val partTimePercent: Double,
     val lines: List<PayLine>,
     val supplementsTotal: BigDecimal,
+    /** Syötetty kuukausipalkka. Vain tuntipalkan laskentaan ja näytettäväksi. */
     val monthlySalary: BigDecimal,
+    /** Peruspalkan osuus jakson kalenteripäiviltä, ks. [PayCalculator.periodBasePay]. */
+    val basePay: BigDecimal,
+    /** Jakson kalenteripäivät, joilta [basePay] laskettiin. */
+    val periodDays: Int,
     val gross: BigDecimal,
     val contributions: BigDecimal,
     val tax: BigDecimal?,
@@ -130,14 +137,49 @@ object PayCalculator {
     }
 
     /**
+     * Peruspalkka jakson ajalta: jokaiselta kalenteripäivältä kuukausipalkka jaettuna
+     * **sen kuukauden** kalenteripäivillä. Sama periaate kuin vajaan kuukauden
+     * palkanmaksussa (kalenteripäiväpalkka).
+     *
+     * Jakso on kolme viikkoa eikä koskaan täysi kuukausi, joten koko kuukausipalkan
+     * lisääminen jakson lisiin antoi bruttoksi luvun, joka ei vastannut mitään.
+     * Kuukauden rajan ylittävässä jaksossa (24.08.–13.09.) elokuun päivät jaetaan
+     * 31:llä ja syyskuun 30:llä.
+     *
+     * Pyöristys vasta lopussa, jotta kuukausittaiset osat eivät kerrytä virhettä.
+     */
+    fun periodBasePay(monthlySalary: BigDecimal, period: ClosedRange<LocalDate>): BigDecimal {
+        var total = BigDecimal.ZERO
+        var day = period.start
+        while (!day.isAfter(period.endInclusive)) {
+            val month = YearMonth.from(day)
+            val monthEnd = minOf(month.atEndOfMonth(), period.endInclusive)
+            val days = java.time.temporal.ChronoUnit.DAYS.between(day, monthEnd) + 1
+            total += monthlySalary.multiply(BigDecimal(days))
+                .divide(BigDecimal(month.lengthOfMonth()), 10, RoundingMode.HALF_UP)
+            day = monthEnd.plusDays(1)
+        }
+        return total.setScale(2, RoundingMode.HALF_UP)
+    }
+
+    /** Jakson pituus kalenteripäivinä. */
+    fun periodDays(period: ClosedRange<LocalDate>): Int =
+        (java.time.temporal.ChronoUnit.DAYS.between(period.start, period.endInclusive) + 1).toInt()
+
+    /**
      * Laskee lisät ja palkan. Käyttää ensisijaisesti työnantajan ilmoittamia tunteja,
      * koska ne ovat se mikä oikeasti maksetaan; jos jokin rivi puuttuu tulosteesta,
      * käytetään omaa laskelmaa.
+     *
+     * @param period jakson päiväväli (vapaapäivät mukaan lukien). Peruspalkka lasketaan
+     *   vain sen ajalta. Null = päätellään vuoroista, mikä voi jättää reunojen
+     *   vapaapäivät pois — anna se aina kun se on tiedossa.
      */
     fun calculate(
         shifts: List<Shift>,
         employer: EmployerSummary,
         input: PayInput,
+        period: ClosedRange<LocalDate>? = null,
     ): PayBreakdown {
         val calc = SupplementHours.of(shifts)
         val hourly = hourlyRate(input)
@@ -165,7 +207,11 @@ object PayCalculator {
         }.filter { it.minutes > 0 }
 
         val supplements = lines.fold(BigDecimal.ZERO) { acc, l -> acc + l.amount }
-        val gross = (input.monthlySalary + supplements).setScale(2, RoundingMode.HALF_UP)
+        val range = period ?: shifts.takeIf { it.isNotEmpty() }
+            ?.let { s -> s.minOf { it.date }..s.maxOf { it.date } }
+        val base = range?.let { periodBasePay(input.monthlySalary, it) }
+            ?: BigDecimal.ZERO.setScale(2)
+        val gross = (base + supplements).setScale(2, RoundingMode.HALF_UP)
 
         val contributions = gross
             .multiply(BigDecimal(input.contributions.totalPercent / 100.0))
@@ -183,6 +229,8 @@ object PayCalculator {
             lines = lines,
             supplementsTotal = supplements.setScale(2, RoundingMode.HALF_UP),
             monthlySalary = input.monthlySalary.setScale(2, RoundingMode.HALF_UP),
+            basePay = base,
+            periodDays = range?.let { periodDays(it) } ?: 0,
             gross = gross,
             contributions = contributions,
             tax = tax,

@@ -241,7 +241,8 @@ class TitaniaShiftParserTest {
     }
 
     @Test
-    fun `vain aidosti tuntematon koodi merkitaan tarkistettavaksi`() {
+    fun `vain aidosti tuntematon koodi tunnistetaan tuntemattomaksi`() {
+        assertFalse(ShiftCodes.isUnknown("K"))
         // U ja E ovat nyt tiedossa: U on sisäinen merkintä, E pitkä vuoro.
         assertFalse(ShiftCodes.isUnknown("U"))
         assertFalse(ShiftCodes.isUnknown("E"))
@@ -249,5 +250,61 @@ class TitaniaShiftParserTest {
         assertTrue(ShiftCodes.isUnknown("R"))
         assertTrue(ShiftCodes.isUnknown("D"))
         assertFalse(ShiftCodes.isUnknown(null))
+    }
+
+    // ---- Tuloste 05.10.–25.10.2026 ----------------------------------------------
+
+    private fun parseOctober() =
+        TitaniaShiftParser(firstYear = 2026).parse(Fixtures.OCTOBER_PRINTOUT)
+
+    @Test
+    fun `lokakuun tuloste tuottaa oikeat vuorot`() {
+        val shifts = parseOctober().shifts
+        val expected = listOf(
+            Triple("R", "2026-10-06T11:00", "2026-10-06T21:30"),
+            Triple("A", "2026-10-07T07:00", "2026-10-07T15:30"),
+            Triple("R", "2026-10-09T13:00", "2026-10-09T21:30"),
+            Triple("R", "2026-10-10T13:00", "2026-10-10T21:30"),
+            Triple("A", "2026-10-11T07:00", "2026-10-11T15:00"),
+            Triple("Y", "2026-10-13T21:00", "2026-10-14T07:18"),
+            Triple("Y", "2026-10-14T21:00", "2026-10-15T07:15"),
+            Triple("Y", "2026-10-15T21:00", "2026-10-16T07:15"),
+            Triple("R", "2026-10-20T13:00", "2026-10-20T21:30"),
+            Triple("R", "2026-10-21T13:00", "2026-10-21T21:30"),
+        )
+        assertEquals(expected.size, shifts.size, "vuorojen lukumäärä")
+        expected.forEachIndexed { i, (code, start, end) ->
+            assertEquals(code, shifts[i].code, "vuoro $i koodi")
+            assertEquals(dt(start), shifts[i].start, "vuoro $i alku")
+            assertEquals(dt(end), shifts[i].end, "vuoro $i loppu")
+            assertEquals(Confidence.OK, shifts[i].confidence, "vuoro $i luottamus")
+        }
+        assertEquals(10, parseOctober().freeDays.size)
+    }
+
+    @Test
+    fun `peräkkäiset osat yhdistetään ja koulutus näkyy otsikossa`() {
+        val day = parseOctober().shifts.first()
+        assertEquals(listOf("K"), day.extraCodes)
+        assertEquals("Vuoro (R) + Koulutus (K)", day.title)
+        assertEquals(3, day.source.split(" | ").size, "kaikki lähderivit tallessa")
+    }
+
+    @Test
+    fun `tuntematon koodi varoittaa kerran mutta ei vaadi tarkistusta`() {
+        val result = parseOctober()
+        assertFalse(result.needsReview)
+        assertEquals(1, result.warnings.size, result.warnings.toString())
+        assertTrue(result.warnings[0].contains("R"))
+    }
+
+    @Test
+    fun `lokakuun yhteenveto luetaan`() {
+        val e = parseOctober().employerSummary
+        assertEquals(91L * 60 + 48, e.totalMinutes)
+        assertEquals(11L * 60 + 30, e.sunday)
+        assertEquals(20L * 60 + 30, e.evening)
+        assertEquals(27L * 60, e.night)
+        assertEquals(5L * 60, e.saturday)
     }
 }

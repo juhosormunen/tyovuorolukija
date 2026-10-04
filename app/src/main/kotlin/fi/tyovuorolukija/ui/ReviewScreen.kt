@@ -108,7 +108,7 @@ fun ReviewScreen(
                             Text(
                                 "${state.flaggedCount} vuoroa vaatii tarkistuksen " +
                                     "(suunnitelma ja toteutunut poikkesivat, tai " +
-                                    "vuorokoodia ei tunnisteta).",
+                                    "yövuoron jatko puuttui).",
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         }
@@ -292,7 +292,7 @@ private fun ShiftRowCard(row: ShiftRow, onChange: ((ShiftRow) -> ShiftRow) -> Un
                 )
                 Column(Modifier.weight(1f)) {
                     Text(
-                        ShiftCodes.title(row.code.ifBlank { null }),
+                        ShiftCodes.title(row.code.ifBlank { null }, row.extraCodes),
                         style = MaterialTheme.typography.titleMedium,
                     )
                     Text(

@@ -51,6 +51,8 @@ data class ShiftRow(
     val include: Boolean,
     val flagged: Boolean,
     val source: String,
+    /** Yhdistetyn päivän muiden osien koodit, esim. koulutus. Ks. [Shift.extraCodes]. */
+    val extraCodes: List<String> = emptyList(),
 ) {
     val startError: Boolean get() = parseOrNull(startText) == null
     val endError: Boolean get() = parseOrNull(endText) == null
@@ -67,6 +69,7 @@ data class ShiftRow(
             end = end,
             confidence = if (flagged) Confidence.REVIEW else Confidence.OK,
             source = source,
+            extraCodes = extraCodes,
         )
     }
 
@@ -82,8 +85,12 @@ data class ShiftRow(
             startText = shift.start.format(FORMAT),
             endText = shift.end.format(FORMAT),
             include = true,
-            flagged = shift.confidence == Confidence.REVIEW || ShiftCodes.isUnknown(shift.code),
+            // Tuntematon koodi ei yksin tee vuorosta tarkistettavaa: kellonajat on
+            // luettu normaalisti, ja punaisena näkyvä vuoro, jossa ei ole mitään
+            // korjattavaa, opettaa ohittamaan merkinnät. Parseri varoittaa koodista.
+            flagged = shift.confidence == Confidence.REVIEW,
             source = shift.source,
+            extraCodes = shift.extraCodes,
         )
     }
 }
@@ -217,6 +224,7 @@ sealed interface UiState {
                         rates = payForm.rates,
                         contributions = payForm.contributions,
                     ),
+                    period = dateRange,
                 )
             }
         /**

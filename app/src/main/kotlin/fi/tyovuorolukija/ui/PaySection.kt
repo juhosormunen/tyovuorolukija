@@ -321,7 +321,13 @@ private fun PayCard(pay: PayBreakdown) {
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            MoneyRow("Kuukauden peruspalkka", pay.monthlySalary.toPlainString() + " €")
+            MoneyRow("Peruspalkka jaksolta", pay.basePay.toPlainString() + " €")
+            Text(
+                "${pay.monthlySalary.toPlainString()} € / kk, ${pay.periodDays} kalenteripäivää " +
+                    "(kuukauden päivät jaettuna sen kuukauden pituudella)",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             HorizontalDivider(Modifier.padding(vertical = 4.dp))
             pay.lines.forEach { line ->
                 MoneyRow(
@@ -342,9 +348,10 @@ private fun PayCard(pay: PayBreakdown) {
                 style = MaterialTheme.typography.bodySmall,
             )
             Text(
-                "Huom: peruspalkka on koko kuukaudelta, lisät vain tältä jaksolta. " +
-                    "Jakso ei ole kuukausi, joten summa ei vastaa mitään yksittäistä " +
-                    "palkkapäivää.",
+                "Brutto on tämän jakson ansio: peruspalkka jakson päiviltä ja jakson " +
+                    "lisät. Palkkalaskelma tehdään kalenterikuukausittain ja lisät " +
+                    "maksetaan tyypillisesti jälkikäteen, joten luku ei vastaa " +
+                    "suoraan yhtä palkkapäivää.",
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 4.dp),
             )

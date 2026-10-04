@@ -15,7 +15,13 @@ package fi.tyovuorolukija.parser
  *
  * **Kirjainkoolla ei ole merkitystä tulkinnassa** eikä siitä varoiteta. Sen sijaan
  * aidosti tuntemattomista koodeista varoitetaan ([isUnknown]) — tulosteissa on
- * nähty ainakin `R` ja `D`, joiden merkitys on selvittämättä.
+ * nähty ainakin `R` ja `D`, joiden merkitys on selvittämättä. Varoitus on tieto,
+ * ei tarkistuspyyntö: kellonajat luetaan koodista riippumatta, joten tuntematon
+ * koodi vaikuttaa vain otsikkoon eikä vuoroa merkitä sen takia tarkistettavaksi.
+ *
+ * `K` = koulutus. Selvisi tulosteesta 05.10.–25.10.2026, jossa rivin selitteenä
+ * luki "koulutus". Koulutus on tyypillisesti osa työpäivää (`R 1100-1200`,
+ * `K 1200-1430`, `R 1430-2130`), ja osat yhdistetään yhdeksi vuoroksi.
  */
 object ShiftCodes {
 
@@ -26,6 +32,7 @@ object ShiftCodes {
         "Y" to "Yö",
         "V" to "Vapaa",
         "E" to "Pitkä",
+        "K" to "Koulutus",
     )
 
     /** Koodit joilla ei ole vuorotyyppiä — nimi sellaisenaan, ilman sulkeita. */
@@ -47,6 +54,13 @@ object ShiftCodes {
         STANDALONE[key]?.let { return it }
         return "${NAMES[key] ?: "Vuoro"} ($code)"
     }
+
+    /**
+     * Otsikko vuorolle, joka on koottu peräkkäisistä osista, esim.
+     * "Vuoro (R) + Koulutus (K)". Pääkoodi ensin, muut sen perään.
+     */
+    fun title(code: String?, extraCodes: List<String>): String =
+        (listOf(title(code)) + extraCodes.map { title(it) }).distinct().joinToString(" + ")
 
     /**
      * True jos koodia ei tunneta lainkaan. Tällainen vuoro merkitään

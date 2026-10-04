@@ -48,6 +48,18 @@ class PayCalculatorTest {
         assertEquals(true, cmp.totalMatches)
     }
 
+    /** Sama vaatimus toiselle jaksolle, jossa on koulutuspäivä ja R-vuoroja. */
+    @Test
+    fun `lokakuun jakso tasmaa tyonantajan erittelyyn minuutilleen`() {
+        val october = TitaniaShiftParser(firstYear = 2026).parse(Fixtures.OCTOBER_PRINTOUT)
+        val cmp = PayCalculator.compare(october.shifts, october.employerSummary)
+        cmp.rows.forEach { row ->
+            assertEquals(row.employerMinutes, row.calculatedMinutes, row.label)
+        }
+        assertTrue(cmp.allMatch)
+        assertEquals(true, cmp.totalMatches)
+    }
+
     @Test
     fun `tyoaikaprosentti luetaan otsikkotiedoista`() {
         assertEquals(80.0, parsed.partTimePercent)
@@ -137,7 +149,9 @@ class PayCalculatorTest {
             partTimePercent = 80.0,
             taxPercent = 20.0,
         )
-        val pay = PayCalculator.calculate(parsed.shifts, parsed.employerSummary, input)
+        val pay = PayCalculator.calculate(
+            parsed.shifts, parsed.employerSummary, input, parsed.dateRange,
+        )
 
         assertEquals(BigDecimal("20.00"), pay.hourlyRate)
 
@@ -153,13 +167,38 @@ class PayCalculatorTest {
         assertEquals(BigDecimal("60.00"), amount("Lauantaityö"))
 
         assertEquals(BigDecimal("842.67"), pay.supplementsTotal)
-        assertEquals(BigDecimal("3450.67"), pay.gross)
+        // Peruspalkka vain jakson päiviltä: 24.–31.8. = 8 × 2608/31,
+        // 1.–13.9. = 13 × 2608/30 → 673,03 + 1130,13 = 1803,17
+        assertEquals(21, pay.periodDays)
+        assertEquals(BigDecimal("1803.17"), pay.basePay)
+        assertEquals(BigDecimal("2645.84"), pay.gross)
 
         // vero 20 % bruttosta
-        assertEquals(BigDecimal("690.13"), pay.tax)
+        assertEquals(BigDecimal("529.17"), pay.tax)
         // TyEL 7,15 % + tvm 0,59 % = 7,74 %
-        assertEquals(BigDecimal("267.08"), pay.contributions)
-        assertEquals(BigDecimal("2493.46"), pay.net)
+        assertEquals(BigDecimal("204.79"), pay.contributions)
+        assertEquals(BigDecimal("1911.88"), pay.net)
+    }
+
+    @Test
+    fun `peruspalkka jakson kalenteripaivilta`() {
+        val salary = BigDecimal("3100.00")
+        // Koko kalenterikuukausi = koko kuukausipalkka.
+        assertEquals(
+            BigDecimal("3100.00"),
+            PayCalculator.periodBasePay(salary, LocalDate.of(2026, 10, 1)..LocalDate.of(2026, 10, 31)),
+        )
+        // Kolme viikkoa lokakuussa: 21/31.
+        assertEquals(
+            BigDecimal("2100.00"),
+            PayCalculator.periodBasePay(salary, LocalDate.of(2026, 10, 5)..LocalDate.of(2026, 10, 25)),
+        )
+        // Helmikuun päivä on arvokkaampi kuin maaliskuun: 2/28 + 1/31.
+        assertEquals(
+            BigDecimal("311.06"),
+            PayCalculator.periodBasePay(BigDecimal("3000.00"),
+                LocalDate.of(2027, 2, 27)..LocalDate.of(2027, 3, 1)),
+        )
     }
 
     @Test

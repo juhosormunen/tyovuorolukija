@@ -194,6 +194,67 @@ object Fixtures {
         muu korvausvapaa 27:44
     """.trimIndent().lines()
 
+    /**
+     * Toinen litteroitu tuloste: jakso 05.10.–25.10.2026, työaikaprosentti 80.
+     * Lähde: valokuva 2.10.2026 (debug-kansio `20261002`). Tunnistetiedot pois.
+     *
+     * Uutta edelliseen verrattuna:
+     * - koodit `R` (merkitys tuntematon) ja `K` (selitteen mukaan koulutus)
+     * - 06.10 on **kolmesta peräkkäisestä osasta** koostuva työpäivä
+     *   (R 1100-1200, K 1200-1430, R 1430-2130) → yksi vuoro
+     * - OCR:n välilyönti aikavälin keskellä (`R 1300- 2130`), havaittu sovelluksessa
+     * - yhteenvedossa rivi "muu korvausvapaa", joka ei ole työaikakorvaus
+     */
+    val OCTOBER_PRINTOUT: List<String> = """
+        työaikamuoto:   Jaksotyö, vuorotyöluonteinen, kuukausipalkkainen, SOTE
+        työaikaprosentti:    80,00
+
+                    suunnitelma  toteutunut  selite
+        ------------------------------------------------
+        05.10 ma    V            V            vapaapäivä
+        06.10 ti    R 1100-1200  R 1100-1200
+                    K 1200-1430  K 1200-1430  koulutus
+                    R 1430-2130  R 1430-2130
+        07.10 ke    A 0700-1530  A 0700-1530
+        08.10 to    V            V            vapaapäivä
+        09.10 pe    R 1300-2130  R 1300-2130
+        10.10 la    R 1300-2130  R 1300-2130
+        11.10 SU    A 0700-1500  A 0700-1500
+        ------------------------------------------------
+        12.10 ma    V            V            vapaapäivä
+        13.10 ti    Y 2100-2400  Y 2100-2400
+        14.10 ke      0000-0718    0000-0718
+                    Y 2100-2400  Y 2100-2400
+        15.10 to      0000-0715    0000-0715
+                    Y 2100-2400  Y 2100-2400
+        16.10 pe      0000-0715    0000-0715
+        17.10 la    V            V            vapaapäivä
+        18.10 SU    V            V            vapaapäivä
+        ------------------------------------------------
+        19.10 ma    V            V            vapaapäivä
+        20.10 ti    R 1300-2130  R 1300-2130
+        21.10 ke    R 1300-2130  R 1300- 2130
+        22.10 to    V            V            vapaapäivä
+        23.10 pe    V            V            vapaapäivä
+        24.10 la    V            V            vapaapäivä
+        25.10 SU    V            V            vapaapäivä
+        ------------------------------------------------
+        tunnit yhteensä    91:48    91:48
+        jakson tunnit      91:48    91:48
+        suunnitteluraja    91:48
+        lisätyöraja        91:48    91:48
+        ylityöraja        114:45   114:45
+
+        tunnit yhteensä            91:48     91:48
+        sunnuntaityö               11:30     11:30
+        iltatyö  (18-22)           20:30     20:30
+        yötyö    (22-07)           27:00     27:00
+        lauantaityö                 5:00      5:00
+                                           kertymä
+        Vapaa-aikakorvaukset
+        muu korvausvapaa           15:34
+    """.trimIndent().lines()
+
     /** Kesäajan päättyminen su 25.10.2026 klo 04:00 -> 03:00. */
     val DST_AUTUMN: List<String> = """
                     suunnitelma  toteutunut  selite

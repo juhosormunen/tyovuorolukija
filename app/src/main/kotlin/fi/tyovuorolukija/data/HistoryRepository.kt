@@ -235,7 +235,7 @@ class HistoryRepository(context: Context) {
                 shortRestCount = rhythm.shortRestCount,
                 freeDayCount = rhythm.freeDayCount,
 
-                monthlySalaryCents = pay?.monthlySalary?.cents(),
+                basePayCents = pay?.basePay?.cents(),
                 supplementsCents = pay?.supplementsTotal?.cents(),
                 grossCents = pay?.gross?.cents(),
                 netCents = pay?.net?.cents(),
@@ -308,6 +308,8 @@ class HistoryRepository(context: Context) {
                             rates = form.rates,
                             contributions = form.contributions,
                         ),
+                        period = LocalDate.parse(period.rangeStart)..
+                            LocalDate.parse(period.rangeEnd),
                     )
                 }
 
@@ -328,7 +330,7 @@ class HistoryRepository(context: Context) {
                         shortestRestMinutes = rhythm.shortestRestMinutes,
                         shortRestCount = rhythm.shortRestCount,
                         freeDayCount = rhythm.freeDayCount,
-                        monthlySalaryCents = pay?.monthlySalary?.cents(),
+                        basePayCents = pay?.basePay?.cents(),
                         supplementsCents = pay?.supplementsTotal?.cents(),
                         grossCents = pay?.gross?.cents(),
                         netCents = pay?.net?.cents(),

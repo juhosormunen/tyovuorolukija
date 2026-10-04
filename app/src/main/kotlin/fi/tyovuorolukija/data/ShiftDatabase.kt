@@ -1,6 +1,7 @@
 package fi.tyovuorolukija.data
 
 import android.content.Context
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Entity
@@ -13,6 +14,8 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import fi.tyovuorolukija.parser.tes.LegacyPayFix
+import java.time.LocalDate
 
 /**
  * Kirjanpito siitä mikä vuoro vastaa mitäkin kalenteritapahtumaa.
@@ -126,7 +129,12 @@ data class ScannedPeriod(
     val shortRestCount: Int,
     val freeDayCount: Int,
 
-    val monthlySalaryCents: Long?,
+    /**
+     * Peruspalkan osuus jakson päiviltä. Sarakkeen nimi on historiallinen: ennen
+     * skeemaversiota 6 tähän tallentui koko kuukausipalkka (ks. MIGRATION_5_6).
+     */
+    @ColumnInfo(name = "monthlySalaryCents")
+    val basePayCents: Long?,
     val supplementsCents: Long?,
     val grossCents: Long?,
     val netCents: Long?,
@@ -340,7 +348,7 @@ interface SyncBatchDao {
         SyncedShift::class, SyncBatch::class, SyncAction::class,
         ScannedPeriod::class, ScannedDay::class, AbsenceDay::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = false,
 )
 abstract class ShiftDatabase : RoomDatabase() {
@@ -492,6 +500,54 @@ abstract class ShiftDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v5 -> v6: ei skeemamuutosta, vaan vanhojen jaksojen rahaluvut korjataan.
+         *
+         * Ennen tätä jakson bruttoon laskettiin koko kuukausipalkka, vaikka jakso on
+         * kolme viikkoa, ja historian kertymät paisuivat sen mukana. Nyt peruspalkka
+         * lasketaan vain jakson päiviltä. Vanhat rivit muunnetaan samaan muotoon
+         * (`LegacyPayFix`, testattu `:parser`issa), jotta historiaan ei jää kahdella
+         * eri tavalla laskettuja jaksoja rinnakkain.
+         */
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                val updates = mutableListOf<Array<Any?>>()
+                db.query(
+                    "SELECT `id`, `rangeStart`, `rangeEnd`, `monthlySalaryCents`, " +
+                        "`grossCents`, `taxCents`, `contributionsCents`, `netCents` " +
+                        "FROM `scanned_periods` " +
+                        "WHERE `monthlySalaryCents` IS NOT NULL AND `grossCents` IS NOT NULL"
+                ).use { c ->
+                    fun longOrNull(i: Int): Long? = if (c.isNull(i)) null else c.getLong(i)
+                    while (c.moveToNext()) {
+                        val range = runCatching {
+                            LocalDate.parse(c.getString(1))..LocalDate.parse(c.getString(2))
+                        }.getOrNull() ?: continue
+                        val fixed = LegacyPayFix.fix(
+                            period = range,
+                            monthlySalary = c.getLong(3),
+                            gross = c.getLong(4),
+                            tax = longOrNull(5),
+                            contributions = longOrNull(6),
+                            net = longOrNull(7),
+                        )
+                        updates += arrayOf(
+                            fixed.base, fixed.gross, fixed.tax, fixed.contributions,
+                            fixed.net, c.getLong(0),
+                        )
+                    }
+                }
+                updates.forEach {
+                    db.execSQL(
+                        "UPDATE `scanned_periods` SET `monthlySalaryCents` = ?, " +
+                            "`grossCents` = ?, `taxCents` = ?, `contributionsCents` = ?, " +
+                            "`netCents` = ? WHERE `id` = ?",
+                        it,
+                    )
+                }
+            }
+        }
+
         @Volatile
         private var instance: ShiftDatabase? = null
 
@@ -500,7 +556,8 @@ abstract class ShiftDatabase : RoomDatabase() {
                 context.applicationContext,
                 ShiftDatabase::class.java,
                 "tyovuorolukija.db",
-            ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+            ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5,
+                MIGRATION_5_6)
                 .build().also { instance = it }
         }
     }

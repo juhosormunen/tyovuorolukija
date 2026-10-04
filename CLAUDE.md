@@ -39,9 +39,16 @@ Teksti on **monospace-konekirjoitusta**, mikä on OCR:lle helppoa. Oikeassa reun
 oli esimerkkikuvassa **käsinkirjoitettu sarake** ("Hoito", lapsen hoitoajat) — se ei
 kuulu dataan ja suodatetaan pois.
 
-Esimerkkituloste on litteroituna `parser/src/test/kotlin/.../Fixtures.kt`:ssä
-(`EXAMPLE_PRINTOUT`, jakso 24.08.–13.09., työaikaprosentti 80). Se tuottaa
-**10 vuoroa ja 9 vapaapäivää**, nolla varoitusta — tämä on testattu.
+Litteroidut tulosteet ovat `parser/src/test/kotlin/.../Fixtures.kt`:ssä
+(tunnistetiedot korvattu, repo on julkinen):
+
+| Vakio | Jakso | Tulos |
+|---|---|---|
+| `EXAMPLE_PRINTOUT` | 24.08.–13.09.2026 | 10 vuoroa, 9 vapaapäivää, 0 varoitusta |
+| `REAL_OCR` | sama, raaka ML Kit -tuloste | OCR-virheiden korjaus |
+| `OCTOBER_PRINTOUT` | 05.10.–25.10.2026 | 10 vuoroa (06.10 koottu kolmesta osasta), 10 vapaapäivää, 1 varoitus (koodi R) |
+
+Molemmat jaksot täsmäävät työnantajan erittelyyn minuutilleen.
 
 ## Formaatin ansat
 
@@ -69,6 +76,13 @@ Kaikki nämä on ratkaistu ja katettu testeillä. Muista ne, jos formaatti muutt
    Raja etsitään otsikon "selite" oikeasta reunasta; varasuunnitelmana levein rivi
    jossa on nelinumeroinen aikaväli. Käsiala ("8-16") ei matchaa parserin regexiä
    vaikka pääsisi läpi — tämäkin on testattu.
+9. **Päivä voi koostua peräkkäisistä osista eri koodeilla.** `R 1100-1200`,
+   `K 1200-1430`, `R 1430-2130` on **yksi** työpäivä (keskellä koulutus) ja siitä
+   tulee yksi kalenteritapahtuma. Sääntö: kun osa alkaa täsmälleen siitä mihin
+   edellinen päättyi, ne yhdistetään (`mergeAdjacent`). Pääkoodi on se, jolla on
+   pisin yhteiskesto; muut menevät `Shift.extraCodes`iin ja näkyvät otsikossa
+   (`Vuoro (R) + Koulutus (K)`). Käyttäjä nimenomaan halusi tämän: aiempi versio
+   teki kolme tapahtumaa.
 
 ## Arkkitehtuuripäätökset
 
@@ -215,6 +229,19 @@ poissaolo katoaisi huomaamatta.
 omalla logiikallaan, joten poikkeama on odotettu — se on tieto, ei vika. Siksi
 `employerMatched` nollataan jaksoilta joissa on poissaoloja.
 
+### Peruspalkka jaksolta
+
+Jakso on kolme viikkoa, ei kuukausi. Bruttoon lasketaan siksi peruspalkasta vain
+jakson osuus (`PayCalculator.periodBasePay`): jokaiselta kalenteripäivältä
+kuukausipalkka ÷ **sen kuukauden** kalenteripäivät (kalenteripäiväpalkka, kuten
+vajaan kuukauden palkassa). Kuun vaihteen ylittävässä jaksossa elokuun päivät
+jaetaan 31:llä ja syyskuun 30:llä. Tuntipalkka lasketaan yhä koko kuukausipalkasta
+(23 §).
+
+Ennen versiota 0.19 bruttoon lisättiin koko kuukausipalkka. Skeemaversion 6
+migraatio korjaa vanhat historiarivit (`LegacyPayFix`, testattu). Sarake on yhä
+nimeltään `monthlySalaryCents`, mutta kenttä on `ScannedPeriod.basePayCents`.
+
 ### Validointi
 
 `PayCalculatorTest` ajaa esimerkkitulosteen läpi ja vaatii että itsenäisesti lasketut
@@ -234,11 +261,14 @@ tunnit eivät täsmäisi.
 ## Vielä ratkaisematta
 
 - [x] **Vuorokoodien merkitykset — selvitetty.** `A` aamu, `I` ilta, `Y` yö,
-      `V` vapaa, `E` pitkä vuoro (aamusta iltaan). **`U` ei ole vuorotyyppi**
-      vaan sisäinen merkintä siitä mitä vuoron aikana tehdään; käsin tehdyissä
-      kalenterimerkinnöissä nimellä "U-päivä". Kirjainkoolla ei ole merkitystä
-      eikä siitä varoiteta. Tuntemattomista koodeista varoitetaan yhä —
-      tulosteissa on nähty ainakin `R` ja `D`, joiden merkitys on auki.
+      `V` vapaa, `E` pitkä vuoro (aamusta iltaan), `K` koulutus (selitteestä).
+      **`U` ei ole vuorotyyppi** vaan sisäinen merkintä siitä mitä vuoron aikana
+      tehdään; käsin tehdyissä kalenterimerkinnöissä nimellä "U-päivä".
+      Kirjainkoolla ei ole merkitystä eikä siitä varoiteta. `R` ja `D` ovat
+      yhä auki (käyttäjäkään ei tiedä). Tuntemattomasta koodista tulee **yksi
+      varoitus per koodi**, mutta vuoroa ei merkitä tarkistettavaksi (punaiseksi):
+      kellonajat luetaan koodista riippumatta, ja aiheettomat punaiset merkinnät
+      opettavat ohittamaan oikeat.
 - [ ] **Testiaineisto.** Kerää 5–10 valokuvaa eri jaksoista. Litteroi jokainen
       `Fixtures.kt`:iin ja kirjoita sille testi. Formaatti todennäköisesti vaihtelee
       enemmän kuin uskoisi. Kuvat kansioon `kuvat-testi/` (gitignoroitu).
@@ -263,6 +293,22 @@ tunnit eivät täsmäisi.
 - [ ] **Sopimuskauden vaihtuminen.** Oletusprosentit on sidottu SOTE-sopimukseen
       2025–2028. Kun kausi vaihtuu, päivitä `TesRates`-oletukset ja tämän tiedoston
       taulukko.
+
+## Kehitystiedon säilytys
+
+Keskusteluhistoria Claude Coden kanssa **ei säily** (vanhat istunnot poistuvat noin
+kuukaudessa). Kaikki mitä myöhemmin tarvitaan kirjataan näihin:
+
+| Mihin | Mitä |
+|---|---|
+| Tämä tiedosto (`CLAUDE.md`) | Päätökset perusteluineen, formaatin ansat, avoimet asiat. Luetaan jokaisen istunnon alussa. |
+| Git-commitit (GitHub) | Mitä muuttui ja miksi, versio viestissä. |
+| `Fixtures.kt` + testit | Jokainen uusi tuloste litteroituna ja testattuna. |
+| Claude Coden muisti (`~/.claude/projects/.../memory/`) | Vain tämän koneen asiat (työkalut, verkko), ei projektitietoa. |
+
+Debug-aineisto (valokuvat, kuvakaappaukset) on kansiossa
+`D:\Dropbox\Apps\Työvuorolukija debug\<päivä>` — **ei** repossa, koska kuvissa on
+nimiä ja henkilötunnuksia.
 
 ## Kehitysympäristö
 
@@ -337,7 +383,7 @@ eikä poistoa tarvita.
   - `TitaniaShiftParser`, `ShiftCodes`, `ShiftTimes`
   - `tes/` — `TesRates`, `FinnishHolidays`, `SupplementHours`, `PayCalculator`
   - `stats/` — `ShiftRhythm` (kuormituksen tunnusluvut)
-  - Testit: 46 kpl, kaikki läpi.
+  - Testit: 67 kpl, kaikki läpi.
 - `:app` — Compose-käyttöliittymä, CameraX, ML Kit, Room, CalendarContract,
   `PaySettingsStore` (SharedPreferences), `HistoryRepository`, graafit
   (`ui/charts/`).
@@ -375,6 +421,7 @@ ja vahvistusteksti muuttuu valinnan mukaan. Historian poisto ei koskaan koske
 | 3 | `scanned_periods` — jaksohistoria |
 | 4 | `scanned_days` — päiväkohtainen data kalenterinäkymään; `taxCents`, `contributionsCents` |
 | 5 | `absence_days` — sairaus- ja lomamerkinnät; `scanned_days.startMillis`/`endMillis` (täytetään takautuvasti `synced_shifts`ista) |
+| 6 | Ei skeemamuutosta: vanhojen jaksojen peruspalkka, brutto, vero, maksut ja netto korjataan jakson osuudeksi (`LegacyPayFix`). **Ei vielä testattu laitteella.** |
 
 Migraatiot on kirjoitettu käsin (`exportSchema = false`) ja **testattu oikealla
 laitteella**, ei vain kääntämällä: Room validoi skeeman kannan avautuessa, joten
