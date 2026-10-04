@@ -128,6 +128,7 @@ fun HomeScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp),
         )
+        UpdateCheckButton()
 
         // Virheen huomaa usein vasta kalenterista, joten kumous on tarjolla
         // vielä senkin jälkeen kun tallennusnäkymästä on poistuttu.

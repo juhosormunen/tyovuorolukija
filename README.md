@@ -34,10 +34,12 @@ Lataa sama linkki uudestaan ja asenna vanhan päälle. **Älä poista sovellusta
 päivitys säilyttää historian ja kalenterikirjanpidon. Kaikki julkaisut on
 allekirjoitettu samalla avaimella, joten Android hyväksyy päivityksen.
 
-Sovellus ei tarkista päivityksiä itse eikä ilmoita niistä: se vaatisi
-verkkoyhteysluvan, jota tässä ei haluta. Uudet versiot näkyvät
+Aloitusnäkymän ja Tietoa sovelluksesta -näkymän **Tarkista päivitykset** avaa
+uusimman julkaisun sivun selaimessa. Vertaa sivun versiota aloitusnäkymässä
+näkyvään ja lataa tarvittaessa uusi APK sivulta. Sovellus ei itse tarkista
+päivityksiä eikä ilmoita niistä: se vaatisi verkkoyhteysluvan, jota tässä ei
+haluta. Kaikki versiot näkyvät
 [Releases-sivulla](https://github.com/juhosormunen/tyovuorolukija/releases).
-Asennetun version näet aloitusnäkymän alalaidasta.
 
 ## Käyttö
 

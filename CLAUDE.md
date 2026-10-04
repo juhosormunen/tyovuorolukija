@@ -357,6 +357,14 @@ gitignoroitu).
 versionName näkyy käyttäjälle aloitusnäkymässä ja Tietoa sovelluksesta -näkymässä.
 Ilman näkyvää versiota kukaan ei tiedä mikä käännös kenelläkin on.
 
+**Julkaisu GitHubiin.** Käyttäjät asentavat ja päivittävät linkistä
+`releases/latest/download/Tyovuorolukija.apk` (README), joten jokainen jaettava
+versio pitää julkaista GitHub Releaseksi: tagi `v<versio>`, liitteenä APK
+**nimellä `Tyovuorolukija.apk`** (ilman versionumeroa, muuten pysyvä linkki
+hajoaa). Pelkkä `git push` ei riitä — koodi päivittyy, mutta käyttäjät näkevät
+edellisen julkaisun. Sovelluksen "Tarkista päivitykset" -painike avaa
+`releases/latest`-sivun selaimessa (sovelluksella ei ole verkkolupaa).
+
 Allekirjoitus luetaan `keystore.properties`-tiedostosta (gitignoroitu). Avain on
 `keystore/tyovuorolukija.jks` projektin juuressa — siis Dropboxissa, jolloin se
 varmuuskopioituu itsestään. Kansio on gitignoroitu, joten avain ei päädy

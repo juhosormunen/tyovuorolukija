@@ -15,12 +15,35 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import fi.tyovuorolukija.BuildConfig
 import fi.tyovuorolukija.calendar.APP_MARKER
+
+/** Uusimman julkaisun sivu: versio, muutokset ja APK-latauslinkki. */
+const val RELEASES_URL = "https://github.com/juhosormunen/tyovuorolukija/releases/latest"
+
+/**
+ * Avaa uusimman julkaisun sivun selaimessa.
+ *
+ * Sovelluksella ei ole verkkoyhteyslupaa, joten se ei voi itse kysyä onko uudempaa
+ * versiota. Selain voi: käyttäjä vertaa sivun versiota omaansa ja lataa APK:n sieltä.
+ * Mitään ei lähde sovelluksesta — selain hakee sivun kuten minkä tahansa linkin.
+ */
+@Composable
+fun UpdateCheckButton(modifier: Modifier = Modifier) {
+    val uriHandler = LocalUriHandler.current
+    TextButton(
+        // Ilman selainta openUri heittää; silloin painike ei vain tee mitään.
+        onClick = { runCatching { uriHandler.openUri(RELEASES_URL) } },
+        modifier = modifier,
+    ) {
+        Text("Tarkista päivitykset")
+    }
+}
 
 /**
  * Tietoa sovelluksesta.
@@ -49,6 +72,7 @@ fun AboutScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                         style = MaterialTheme.typography.bodyMedium,
                         fontFamily = FontFamily.Monospace,
                     )
+                    UpdateCheckButton()
                 }
             }
         }
@@ -82,6 +106,10 @@ fun AboutScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                 )
                 Bullet(
                     "Palkka-asetukset ja historia ovat vain tällä laitteella."
+                )
+                Bullet(
+                    "\"Tarkista päivitykset\" avaa julkaisusivun selaimessa. Sovellus " +
+                        "ei itse ota yhteyttä mihinkään eikä lähetä tietoja."
                 )
             }
         }
