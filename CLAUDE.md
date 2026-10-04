@@ -83,6 +83,27 @@ Kaikki nämä on ratkaistu ja katettu testeillä. Muista ne, jos formaatti muutt
    pisin yhteiskesto; muut menevät `Shift.extraCodes`iin ja näkyvät otsikossa
    (`Vuoro (R) + Koulutus (K)`). Käyttäjä nimenomaan halusi tämän: aiempi versio
    teki kolme tapahtumaa.
+10. **Päiväyksen numerotkin voivat olla kirjaimia.** `e7.10 ke` = 07.10. Ilman
+    korjausta rivi ei tunnistunut päiväysriviksi, vaan liittyi edelliseen päivään
+    jatkorivinä, ja vuoro siirtyi hiljaa päivää aiemmaksi. Päiväyksessä e/o → 0 ja
+    l/I → 1; turvallista, koska viikonpäivä tarkistaa tuloksen.
+
+### Rakenteelliset tarkistukset
+
+Yksittäiset OCR-korjaukset (kohdat 8 ja 10, `repairOcrDigits`) kattavat vain jo
+nähdyt virheet. Siksi parseri tarkistaa lisäksi tulosteen **rakenteen**, joka ei
+riipu siitä miten OCR rivin rikkoi. Rikkomus ei korjaa mitään, mutta merkitsee
+vuorot tarkistettaviksi ja kertoo syyn:
+
+| Invariantti | Mitä paljastaa |
+|---|---|
+| Jokaisella jakson päivällä on oma päiväysrivinsä | Lukukelvoton päiväys → vuoro liitetty edelliseen päivään |
+| Vuorot eivät mene päällekkäin | Väärään päivään liitetty rivi, väärin luettu kellonaika |
+| Päiväys täsmää viikonpäivään | Väärin luettu päivä tai kuukausi |
+| Omat tunnit täsmäävät työnantajan erittelyyn | Väärä kellonaika, puuttuva vuoro |
+
+Uutta virhetyyppiä korjattaessa kannattaa ensin kysyä, olisiko jokin invariantti
+paljastanut sen. Jos ei, lisää invariantti; täsmäkorjaus on toissijainen.
 
 ## Arkkitehtuuripäätökset
 
@@ -391,7 +412,7 @@ eikä poistoa tarvita.
   - `TitaniaShiftParser`, `ShiftCodes`, `ShiftTimes`
   - `tes/` — `TesRates`, `FinnishHolidays`, `SupplementHours`, `PayCalculator`
   - `stats/` — `ShiftRhythm` (kuormituksen tunnusluvut)
-  - Testit: 67 kpl, kaikki läpi.
+  - Testit: 70 kpl, kaikki läpi.
 - `:app` — Compose-käyttöliittymä, CameraX, ML Kit, Room, CalendarContract,
   `PaySettingsStore` (SharedPreferences), `HistoryRepository`, graafit
   (`ui/charts/`).

@@ -32,8 +32,8 @@ android {
         // versionName on ihmiselle: se näkyy aloitusnäkymässä ja Tietoa
         // sovelluksesta -näkymässä. Pidä se samassa tahdissa versionCoden kanssa —
         // eri numerot samassa paketissa ("0.2 (3)") näyttävät vain sekavalta.
-        versionCode = 20
-        versionName = "0.20"
+        versionCode = 21
+        versionName = "0.21"
     }
 
     signingConfigs {

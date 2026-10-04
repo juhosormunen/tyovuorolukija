@@ -122,8 +122,24 @@ data class ParseResult(
         }
 }
 
+/**
+ * Päiväysrivin alku, esim. "07.10 ke". Numeroiksi hyväksytään myös OCR:n tyypilliset
+ * sekaannukset (`e7.10 ke` = 07.10, havaittu 4.10.2026), ks. [repairDateDigits].
+ * Väljyys on turvallista, koska perässä vaaditaan viikonpäivä ja päiväys tarkistetaan
+ * sitä vasten: väärin korjattu numero paljastuu ristiriitana.
+ */
 private val DATE_RE =
-    Regex("""^\s*(\d{1,2})\.(\d{1,2})\.?\s+(ma|ti|ke|to|pe|la|su)\b""", RegexOption.IGNORE_CASE)
+    Regex("""^\s*([0-9eEoOlI]{1,2})\.([0-9eEoOlI]{1,2})\.?\s+(ma|ti|ke|to|pe|la|su)\b""",
+        RegexOption.IGNORE_CASE)
+
+/** Päiväyksen numeroiksi luetut kirjaimet: e/o → 0, l/I → 1. */
+private fun repairDateDigits(token: String): Int? = token.map {
+    when (it) {
+        'e', 'E', 'o', 'O' -> '0'
+        'l', 'I' -> '1'
+        else -> it
+    }
+}.joinToString("").toIntOrNull()
 
 /** Valinnainen vuorokoodi + kellonaikaväli, esim. "y 2100-2400" tai "0000-0712". */
 private val TIME_RE =
@@ -216,6 +232,7 @@ class TitaniaShiftParser(
         var partTimePercent: Double? = null
         val summaryLines = mutableListOf<String>()
         var currentDate: LocalDate? = null
+        val dateLines = mutableSetOf<LocalDate>()
         var year: Int? = firstYear
         var prevMonth = -1
 
@@ -253,8 +270,8 @@ class TitaniaShiftParser(
             var rest = line
 
             if (dateMatch != null) {
-                val day = dateMatch.groupValues[1].toInt()
-                val month = dateMatch.groupValues[2].toInt()
+                val day = repairDateDigits(dateMatch.groupValues[1]) ?: 0
+                val month = repairDateDigits(dateMatch.groupValues[2]) ?: 0
                 val weekday = WEEKDAYS[dateMatch.groupValues[3].lowercase()]
 
                 if (year == null) year = inferYear(day, month, referenceDate)
@@ -292,6 +309,7 @@ class TitaniaShiftParser(
                     continue
                 }
                 currentDate = resolved
+                dateLines += resolved
                 rest = line.removeRange(dateMatch.range)
             }
 
@@ -371,7 +389,9 @@ class TitaniaShiftParser(
         // tulevat väärin päin, yövuoron jatko jäisi löytymättä ja päätyisi
         // erilliseksi vuoroksi. Tämä on havaittu oikealla valokuvalla.
         val ordered = entries.sortedWith(compareBy({ it.date }, { it.start }))
-        val shifts = mergeAdjacent(mergeNightShifts(ordered, warnings))
+        var shifts = mergeAdjacent(mergeNightShifts(ordered, warnings))
+        shifts = checkMissingDates(shifts, dateLines, warnings)
+        shifts = checkOverlaps(shifts, warnings)
         warnUnknownCodes(shifts, warnings)
         return ParseResult(
             shifts, freeDays, warnings, ignored, parseSummary(summaryLines), partTimePercent,
@@ -518,6 +538,63 @@ class TitaniaShiftParser(
                     .filter { it.uppercase() != mainKey }
                     .distinctBy { it.uppercase() },
             )
+        }
+    }
+
+    /**
+     * Tulosteessa on rivi **jokaiselle** jakson päivälle (vapaapäivillä `V`). Jos
+     * päiväys puuttuu välistä, sen rivi on lähes varmasti luettu väärin — ja silloin
+     * rivin vuoro on liitetty edelliseen päivään jatkorivinä. Näin kävi 4.10.2026:
+     * `e7.10 ke A 070e-1530` päätyi 6.10:lle ilman varoitusta.
+     *
+     * Tarkistus ei riipu siitä, *miten* OCR rivin rikkoi, joten se kattaa myös
+     * virheet joita ei ole vielä nähty. Edellisen päivän vuorot merkitään
+     * tarkistettaviksi, koska väärin liitetty vuoro on niiden joukossa.
+     */
+    private fun checkMissingDates(
+        shifts: List<Shift>,
+        dateLines: Set<LocalDate>,
+        warnings: MutableList<String>,
+    ): List<Shift> {
+        if (dateLines.isEmpty()) return shifts
+        val missing = generateSequence(dateLines.min()) { it.plusDays(1) }
+            .takeWhile { !it.isAfter(dateLines.max()) }
+            .filter { it !in dateLines }
+            .toList()
+        if (missing.isEmpty()) return shifts
+        val suspect = missing.map { m ->
+            generateSequence(m.minusDays(1)) { it.minusDays(1) }.first { it in dateLines }
+        }.toSet()
+        missing.forEach {
+            warnings += "Päivän ${it.dayOfMonth}.${it.monthValue}. riviä ei tunnistettu. " +
+                "Sen vuoro on voinut lukeutua edelliselle päivälle — tarkista."
+        }
+        return shifts.map {
+            if (it.date in suspect) it.copy(confidence = Confidence.REVIEW) else it
+        }
+    }
+
+    /**
+     * Saman ihmisen vuorot eivät voi mennä päällekkäin. Päällekkäisyys tarkoittaa,
+     * että jokin rivi on liitetty väärään päivään tai kellonaika on luettu väärin.
+     * Peräkkäiset osat ([mergeAdjacent]) on yhdistetty jo ennen tätä, joten ne
+     * eivät laukaise tarkistusta.
+     */
+    private fun checkOverlaps(shifts: List<Shift>, warnings: MutableList<String>): List<Shift> {
+        val sorted = shifts.sortedBy { it.start }
+        val flagged = mutableSetOf<Int>()
+        for (i in 0 until sorted.size - 1) {
+            val a = sorted[i]
+            val b = sorted[i + 1]
+            if (b.start.isBefore(a.end)) {
+                flagged += i
+                flagged += i + 1
+                warnings += "Vuorot menevät päällekkäin, tarkista: " +
+                    "${a.source.trim()} / ${b.source.trim()}"
+            }
+        }
+        return sorted.mapIndexed { i, s ->
+            if (i in flagged) s.copy(confidence = Confidence.REVIEW) else s
         }
     }
 

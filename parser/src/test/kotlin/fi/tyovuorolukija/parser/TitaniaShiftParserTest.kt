@@ -307,4 +307,49 @@ class TitaniaShiftParserTest {
         assertEquals(27L * 60, e.night)
         assertEquals(5L * 60, e.saturday)
     }
+
+    // ---- Päiväyksen lukuvirheet (4.10.2026) ---------------------------------------
+
+    private fun octoberWith(from: String, to: String): ParseResult {
+        val lines = Fixtures.OCTOBER_PRINTOUT.map { if (it.trim() == from) it.replace(from, to) else it }
+        check(lines != Fixtures.OCTOBER_PRINTOUT) { "korvattavaa riviä ei löytynyt" }
+        return TitaniaShiftParser(firstYear = 2026).parse(lines)
+    }
+
+    @Test
+    fun `nolla luettuna e-kirjaimena paivayksessa korjataan`() {
+        // Havaittu: "e7.10 ke  A 070e-1530" → vuoro päätyi 6.10:lle.
+        val result = octoberWith("07.10 ke    A 0700-1530  A 0700-1530",
+            "e7.10 ke    A 070e-1530  A 070e-1530")
+        val morning = result.shifts.single { it.code == "A" && it.start.dayOfMonth in 6..7 }
+        assertEquals(dt("2026-10-07T07:00"), morning.start)
+        assertFalse(result.needsReview)
+    }
+
+    @Test
+    fun `lukukelvoton paivays ei siirra vuoroa hiljaa edelliselle paivalle`() {
+        // Jos päiväystä ei saada luettua lainkaan, vuoro liittyy edelliseen päivään
+        // jatkorivinä. Sitä ei voi estää, mutta se ei saa jäädä huomaamatta.
+        val result = octoberWith("07.10 ke    A 0700-1530  A 0700-1530",
+            "#?.1# ke    A 0700-1530  A 0700-1530")
+        assertTrue(result.warnings.any { it.contains("7.10.") }, result.warnings.toString())
+        val oct6 = result.shifts.filter { it.date == LocalDate.of(2026, 10, 6) }
+        assertEquals(2, oct6.size)
+        assertTrue(oct6.all { it.confidence == Confidence.REVIEW })
+    }
+
+    @Test
+    fun `paallekkaiset vuorot merkitaan tarkistettaviksi`() {
+        val result = TitaniaShiftParser(firstYear = 2026).parse(
+            """
+                        suunnitelma  toteutunut  selite
+            06.10 ti    R 1100-2130  R 1100-2130
+                        A 0700-1530  A 0700-1530
+            07.10 ke    V            V            vapaapäivä
+            tunnit yhteensä    18:00
+            """.trimIndent().lines()
+        )
+        assertTrue(result.shifts.all { it.confidence == Confidence.REVIEW })
+        assertTrue(result.warnings.any { it.contains("päällekkäin") })
+    }
 }
